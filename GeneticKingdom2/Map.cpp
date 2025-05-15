@@ -462,7 +462,7 @@ void Map::DrawConstructionMenu(HDC hdc) {
     
     // Definir una fuente grande para títulos
     HFONT titleFont = CreateFontW(
-        20,                        // Altura (24 puntos)
+        20,                        // Altura (20 puntos)
         0,                         // Ancho (0 = auto)
         0,                         // Ángulo de escapamiento
         0,                         // Ángulo de orientación
