@@ -3,6 +3,7 @@
 
 #include "framework.h"
 #include "GeneticKingdom2.h"
+#include "Map.h"
 
 #define MAX_LOADSTRING 100
 
@@ -10,6 +11,8 @@
 HINSTANCE hInst;                                // instancia actual
 WCHAR szTitle[MAX_LOADSTRING];                  // Texto de la barra de título
 WCHAR szWindowClass[MAX_LOADSTRING];            // nombre de clase de la ventana principal
+HBRUSH g_hBackgroundBrush;                      // Pincel para el color de fondo
+Map gameMap;                                    // Objeto del mapa del juego
 
 // Declaraciones de funciones adelantadas incluidas en este módulo de código:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -25,7 +28,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // TODO: Colocar código aquí.
+    // Crear el pincel de color verde para el fondo (#0e813c)
+    g_hBackgroundBrush = CreateSolidBrush(RGB(14, 129, 60)); // RGB valores para #0e813c
 
     // Inicializar cadenas globales
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -52,6 +56,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
     }
 
+    // Liberar recursos
+    DeleteObject(g_hBackgroundBrush);
+
     return (int) msg.wParam;
 }
 
@@ -75,8 +82,8 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_GENETICKINGDOM2));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_GENETICKINGDOM2);
+    wcex.hbrBackground  = g_hBackgroundBrush;  // Usar el pincel de color verde
+    wcex.lpszMenuName   = NULL; // Eliminar el menú
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
@@ -97,15 +104,40 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Almacenar identificador de instancia en una variable global
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+   // Obtener dimensiones de la pantalla
+   int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+   int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+   // Inicializar el mapa con las dimensiones de la pantalla
+   gameMap.Initialize(screenWidth, screenHeight);
+
+   // Crear ventana sin bordes ni decoraciones y asegurar que está en pantalla completa
+   HWND hWnd = CreateWindowW(
+       szWindowClass, 
+       szTitle, 
+       WS_POPUP, // Sólo WS_POPUP para una ventana sin bordes, menús o decoraciones
+       0, 0, 
+       screenWidth, screenHeight, 
+       NULL, NULL, 
+       hInstance, 
+       NULL
+   );
 
    if (!hWnd)
    {
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
+   // Forzar el modo de pantalla completa
+   SetWindowPos(
+       hWnd,
+       HWND_TOP,
+       0, 0,
+       screenWidth, screenHeight,
+       SWP_FRAMECHANGED
+   );
+
+   ShowWindow(hWnd, SW_SHOWMAXIMIZED); // Usar SW_SHOWMAXIMIZED para asegurar pantalla completa
    UpdateWindow(hWnd);
 
    return TRUE;
@@ -146,10 +178,43 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Agregar cualquier código de dibujo que use hDC aquí...
+            
+            // Pintar todo el fondo de verde
+            RECT rc;
+            GetClientRect(hWnd, &rc);
+            FillRect(hdc, &rc, g_hBackgroundBrush);
+            
+            // Dibujar la cuadrícula del mapa
+            gameMap.Draw(hdc);
+            
             EndPaint(hWnd, &ps);
         }
         break;
+    case WM_KEYDOWN:
+        // Permitir salir con la tecla ESC
+        if (wParam == VK_ESCAPE)
+        {
+            DestroyWindow(hWnd);
+        }
+        break;
+    // Procesar mensajes para evitar el redimensionamiento
+    case WM_GETMINMAXINFO:
+        {
+            // Esto evita que la ventana se redimensione
+            LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
+            lpMMI->ptMaxSize.x = GetSystemMetrics(SM_CXSCREEN);
+            lpMMI->ptMaxSize.y = GetSystemMetrics(SM_CYSCREEN);
+            lpMMI->ptMaxPosition.x = 0;
+            lpMMI->ptMaxPosition.y = 0;
+            lpMMI->ptMinTrackSize.x = GetSystemMetrics(SM_CXSCREEN);
+            lpMMI->ptMinTrackSize.y = GetSystemMetrics(SM_CYSCREEN);
+            lpMMI->ptMaxTrackSize.x = GetSystemMetrics(SM_CXSCREEN);
+            lpMMI->ptMaxTrackSize.y = GetSystemMetrics(SM_CYSCREEN);
+        }
+        break;
+    case WM_ERASEBKGND:
+        // No borrar el fondo aquí, se hará en WM_PAINT
+        return TRUE;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;

@@ -1,0 +1,25 @@
+# Archivos de Visual Studio
+.vs/
+x64/
+Debug/
+Release/
+*.user
+*.suo
+*.db
+*.opendb
+*.ipch
+*.vsidx
+
+# Archivos compilados
+*.exe
+*.dll
+*.pdb
+*.obj
+*.ilk
+*.exp
+*.lib
+
+# Otros archivos temporales
+*.log
+*.tlog
+ipch/ 

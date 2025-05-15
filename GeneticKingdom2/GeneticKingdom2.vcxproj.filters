@@ -15,6 +15,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="GeneticKingdom2.h">
+      <Filter>Archivos de encabezado</Filter>
+    </ClInclude>
     <ClInclude Include="framework.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
@@ -24,12 +27,15 @@
     <ClInclude Include="Resource.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
-    <ClInclude Include="GeneticKingdom2.h">
+    <ClInclude Include="Map.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GeneticKingdom2.cpp">
+      <Filter>Archivos de origen</Filter>
+    </ClCompile>
+    <ClCompile Include="Map.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
   </ItemGroup>
