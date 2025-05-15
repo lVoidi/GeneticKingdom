@@ -3,7 +3,17 @@
 
 #include "framework.h"
 #include "GeneticKingdom2.h"
+#include <windowsx.h> // Para GET_X_LPARAM y GET_Y_LPARAM
+#include <wingdi.h>   // Para funciones de GDI
+#include <objidl.h>   // Necesario para GDI+
+#include <gdiplus.h>  // Para GDI+
+#pragma comment(lib, "Msimg32.lib") // Para TransparentBlt
+#pragma comment(lib, "gdiplus.lib") // Para GDI+
+
+// Ahora incluimos Map.h que ya tiene las definiciones de GDI+ correctas
 #include "Map.h"
+
+using namespace Gdiplus;
 
 #define MAX_LOADSTRING 100
 
@@ -13,12 +23,18 @@ WCHAR szTitle[MAX_LOADSTRING];                  // Texto de la barra de título
 WCHAR szWindowClass[MAX_LOADSTRING];            // nombre de clase de la ventana principal
 HBRUSH g_hBackgroundBrush;                      // Pincel para el color de fondo
 Map gameMap;                                    // Objeto del mapa del juego
+bool g_showConstructionInfo = false;            // Mostrar información de construcción
+int g_selectedRow = -1;                         // Fila seleccionada para construcción
+int g_selectedCol = -1;                         // Columna seleccionada para construcción
+ULONG_PTR g_gdiplusToken;                       // Token para GDI+
 
 // Declaraciones de funciones adelantadas incluidas en este módulo de código:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+void                HandleMouseClick(HWND hWnd, int x, int y);
+void                DrawConstructionInfo(HDC hdc, int row, int col);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -27,6 +43,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+
+    // Inicializar GDI+
+    GdiplusStartupInput gdiplusStartupInput;
+    Status status = GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, NULL);
+    if (status != Ok) {
+        MessageBoxW(NULL, L"Error al inicializar GDI+", L"Error", MB_OK | MB_ICONERROR);
+        return FALSE;
+    }
 
     // Crear el pincel de color verde para el fondo (#0e813c)
     g_hBackgroundBrush = CreateSolidBrush(RGB(14, 129, 60)); // RGB valores para #0e813c
@@ -39,6 +63,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Realizar la inicialización de la aplicación:
     if (!InitInstance (hInstance, nCmdShow))
     {
+        // Limpieza si falla la inicialización
+        if (g_hBackgroundBrush) {
+            DeleteObject(g_hBackgroundBrush);
+        }
+        GdiplusShutdown(g_gdiplusToken);
         return FALSE;
     }
 
@@ -57,7 +86,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
     // Liberar recursos
-    DeleteObject(g_hBackgroundBrush);
+    if (g_hBackgroundBrush) {
+        DeleteObject(g_hBackgroundBrush);
+        g_hBackgroundBrush = NULL;
+    }
+    
+    // Cerrar GDI+
+    GdiplusShutdown(g_gdiplusToken);
 
     return (int) msg.wParam;
 }
@@ -187,7 +222,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // Dibujar la cuadrícula del mapa
             gameMap.Draw(hdc);
             
+            // Si hay un punto de construcción seleccionado, mostrar información
+            if (g_showConstructionInfo && g_selectedRow >= 0 && g_selectedCol >= 0) {
+                DrawConstructionInfo(hdc, g_selectedRow, g_selectedCol);
+            }
+            
             EndPaint(hWnd, &ps);
+        }
+        break;
+    case WM_LBUTTONDOWN:
+        {
+            // Manejar clic del mouse para seleccionar puntos de construcción
+            int xPos = GET_X_LPARAM(lParam);
+            int yPos = GET_Y_LPARAM(lParam);
+            HandleMouseClick(hWnd, xPos, yPos);
         }
         break;
     case WM_KEYDOWN:
@@ -242,4 +290,68 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}
+
+// Maneja el clic del mouse para seleccionar un punto de construcción
+void HandleMouseClick(HWND hWnd, int x, int y) {
+    // Convertir coordenadas de pantalla a coordenadas de celda
+    int col = x / CELL_SIZE;
+    int row = y / CELL_SIZE;
+    
+    // Verificar si se hizo clic en un punto de construcción
+    if (gameMap.IsConstructionSpot(row, col)) {
+        // Actualizar la selección
+        g_selectedRow = row;
+        g_selectedCol = col;
+        g_showConstructionInfo = true;
+    } else {
+        // Si se hizo clic fuera de un punto de construcción, ocultar la información
+        g_showConstructionInfo = false;
+        g_selectedRow = -1;
+        g_selectedCol = -1;
+    }
+    
+    // Forzar repintado para mostrar/ocultar información
+    InvalidateRect(hWnd, NULL, FALSE);
+}
+
+// Dibuja información sobre el punto de construcción seleccionado
+void DrawConstructionInfo(HDC hdc, int row, int col) {
+    // Crear un rectángulo de información cerca del punto de construcción
+    RECT infoRect = {
+        col * CELL_SIZE + CELL_SIZE + 10,
+        row * CELL_SIZE,
+        col * CELL_SIZE + CELL_SIZE + 210,
+        row * CELL_SIZE + 100
+    };
+    
+    // Ajustar el rectángulo si está muy cerca del borde derecho
+    if (infoRect.right > GetSystemMetrics(SM_CXSCREEN) - 20) {
+        infoRect.left = col * CELL_SIZE - 210;
+        infoRect.right = col * CELL_SIZE;
+    }
+    
+    // Crear un fondo para el texto
+    HBRUSH infoBrush = CreateSolidBrush(RGB(0, 0, 0));
+    FillRect(hdc, &infoRect, infoBrush);
+    DeleteObject(infoBrush);
+    
+    // Configurar el color del texto
+    SetTextColor(hdc, RGB(255, 255, 255));
+    SetBkMode(hdc, TRANSPARENT);
+    
+    // Mostrar texto de información
+    WCHAR text[256];
+    swprintf_s(text, L"Punto de Construccion");
+    infoRect.top += 10;
+    infoRect.left += 10;
+    DrawTextW(hdc, text, -1, &infoRect, DT_LEFT);
+    
+    swprintf_s(text, L"Fila: %d, Columna: %d", row, col);
+    infoRect.top += 20;
+    DrawTextW(hdc, text, -1, &infoRect, DT_LEFT);
+    
+    swprintf_s(text, L"Haga clic para construir");
+    infoRect.top += 20;
+    DrawTextW(hdc, text, -1, &infoRect, DT_LEFT);
 }
