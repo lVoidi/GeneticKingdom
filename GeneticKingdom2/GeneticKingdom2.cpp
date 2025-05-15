@@ -240,6 +240,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             DestroyWindow(hWnd);
         }
+        // Añadir monedas con la tecla M (para pruebas)
+        else if (wParam == 'M')
+        {
+            gameMap.GetEconomy().AddGold(100);
+            InvalidateRect(hWnd, NULL, FALSE);
+        }
         break;
     // Procesar mensajes para evitar el redimensionamiento
     case WM_GETMINMAXINFO:

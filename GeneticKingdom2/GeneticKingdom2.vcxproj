@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Economy.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="GeneticKingdom2.h" />
     <ClInclude Include="Map.h" />
@@ -135,6 +136,7 @@
     <ClInclude Include="Tower.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Economy.cpp" />
     <ClCompile Include="GeneticKingdom2.cpp" />
     <ClCompile Include="Map.cpp" />
     <ClCompile Include="Tower.cpp" />

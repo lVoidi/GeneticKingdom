@@ -12,6 +12,9 @@
 // Incluir gestor de torres
 #include "Tower.h"
 
+// Incluir economía
+#include "Economy.h"
+
 // Tamaño de cada celda en píxeles
 #define CELL_SIZE 50
 
@@ -94,6 +97,9 @@ public:
     // Mejora la torre en la celda seleccionada
     bool UpgradeTower();
 
+    // Obtiene una referencia a la economía
+    Economy& GetEconomy();
+
 private:
     std::vector<std::vector<Cell>> grid;                 // Matriz 2D para la cuadrícula
     int numRows;                                         // Número de filas en la cuadrícula
@@ -114,4 +120,7 @@ private:
 
     // Gestor de torres
     TowerManager towerManager;
+
+    // Economía del juego
+    Economy economy;
 }; 

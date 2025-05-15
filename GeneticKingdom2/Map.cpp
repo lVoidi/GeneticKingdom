@@ -61,6 +61,9 @@ void Map::Initialize(int screenWidth, int screenHeight) {
     
     // Cargar la imagen de construcción
     LoadConstructionImage();
+    
+    // Inicializar la economía con 500 monedas
+    economy.Initialize(500);
 }
 
 bool Map::LoadConstructionImage() {
@@ -251,6 +254,9 @@ void Map::Draw(HDC hdc) {
     }
     DeleteObject(bridgeBrush);
 
+    // Dibujar el contador de oro en la esquina superior derecha
+    economy.Draw(hdc, GetSystemMetrics(SM_CXSCREEN) - 220, 20);
+
     // Dibujar menú de construcción si está activo
     if (constructionState != ConstructionState::NONE) {
         DrawConstructionMenu(hdc);
@@ -343,22 +349,31 @@ void Map::HandleClick(int x, int y) {
         
         // Comprobar clic en botón de torre Archer
         if (menuX >= 10 && menuX <= 90 && menuY >= 30 && menuY <= 70) {
-            BuildTower(TowerType::ARCHER);
-            constructionState = ConstructionState::NONE;
+            // Verificar si hay suficiente oro
+            if (economy.SpendGold(economy.GetTowerCost())) {
+                BuildTower(TowerType::ARCHER);
+                constructionState = ConstructionState::NONE;
+            }
             return;
         }
         
         // Comprobar clic en botón de torre Gunner
         if (menuX >= 110 && menuX <= 190 && menuY >= 30 && menuY <= 70) {
-            BuildTower(TowerType::GUNNER);
-            constructionState = ConstructionState::NONE;
+            // Verificar si hay suficiente oro
+            if (economy.SpendGold(economy.GetTowerCost())) {
+                BuildTower(TowerType::GUNNER);
+                constructionState = ConstructionState::NONE;
+            }
             return;
         }
         
         // Comprobar clic en botón de torre Mage
         if (menuX >= 210 && menuX <= 290 && menuY >= 30 && menuY <= 70) {
-            BuildTower(TowerType::MAGE);
-            constructionState = ConstructionState::NONE;
+            // Verificar si hay suficiente oro
+            if (economy.SpendGold(economy.GetTowerCost())) {
+                BuildTower(TowerType::MAGE);
+                constructionState = ConstructionState::NONE;
+            }
             return;
         }
         
@@ -377,7 +392,16 @@ void Map::HandleClick(int x, int y) {
         
         // Comprobar clic en botón de mejora
         if (menuX >= 10 && menuX <= 190 && menuY >= 30 && menuY <= 70) {
-            UpgradeTower();
+            Tower* tower = towerManager.GetTowerAt(selectedRow, selectedCol);
+            if (tower) {
+                int currentLevel = static_cast<int>(tower->GetLevel());
+                int upgradeCost = economy.GetUpgradeCost(currentLevel);
+                
+                // Verificar si hay suficiente oro
+                if (economy.SpendGold(upgradeCost)) {
+                    UpgradeTower();
+                }
+            }
             constructionState = ConstructionState::NONE;
             return;
         }
@@ -423,7 +447,7 @@ void Map::DrawConstructionMenu(HDC hdc) {
         selectedCol * CELL_SIZE + CELL_SIZE + 10,
         selectedRow * CELL_SIZE,
         selectedCol * CELL_SIZE + CELL_SIZE + 310,
-        selectedRow * CELL_SIZE + 100
+        selectedRow * CELL_SIZE + 150  // Aumentar la altura del menú
     };
     
     // Ajustar el rectángulo si está muy cerca del borde derecho
@@ -436,31 +460,80 @@ void Map::DrawConstructionMenu(HDC hdc) {
     HBRUSH menuBrush = CreateSolidBrush(RGB(0, 0, 0));
     FillRect(hdc, &menuRect, menuBrush);
     
+    // Definir una fuente grande para títulos
+    HFONT titleFont = CreateFontW(
+        20,                        // Altura (24 puntos)
+        0,                         // Ancho (0 = auto)
+        0,                         // Ángulo de escapamiento
+        0,                         // Ángulo de orientación
+        FW_BOLD,                   // Peso de la fuente (negrita)
+        FALSE,                     // Cursiva
+        FALSE,                     // Subrayado
+        FALSE,                     // Tachado
+        DEFAULT_CHARSET,           // Conjunto de caracteres
+        OUT_OUTLINE_PRECIS,        // Precisión de salida
+        CLIP_DEFAULT_PRECIS,       // Precisión de recorte
+        CLEARTYPE_QUALITY,         // Calidad
+        DEFAULT_PITCH | FF_SWISS,  // Familia y paso
+        L"Arial"                   // Nombre de la fuente
+    );
+    
+    // Definir una fuente para textos normales
+    HFONT normalFont = CreateFontW(
+        18,                        // Altura (18 puntos)
+        0,                         // Ancho (0 = auto)
+        0,                         // Ángulo de escapamiento
+        0,                         // Ángulo de orientación
+        FW_NORMAL,                 // Peso de la fuente (normal)
+        FALSE,                     // Cursiva
+        FALSE,                     // Subrayado
+        FALSE,                     // Tachado
+        DEFAULT_CHARSET,           // Conjunto de caracteres
+        OUT_OUTLINE_PRECIS,        // Precisión de salida
+        CLIP_DEFAULT_PRECIS,       // Precisión de recorte
+        CLEARTYPE_QUALITY,         // Calidad
+        DEFAULT_PITCH | FF_SWISS,  // Familia y paso
+        L"Arial"                   // Nombre de la fuente
+    );
+    
     // Configurar el color del texto
     SetTextColor(hdc, RGB(255, 255, 255));
     SetBkMode(hdc, TRANSPARENT);
     
+    // Seleccionar la fuente para el título
+    HFONT oldFont = (HFONT)SelectObject(hdc, titleFont);
+    
     // Título del menú
     WCHAR title[256];
     if (constructionState == ConstructionState::SELECTING_TOWER) {
-        swprintf_s(title, L"Seleccione tipo de torre");
+        swprintf_s(title, L"Seleccione tipo de torre - Costo: %d", economy.GetTowerCost());
     } else if (constructionState == ConstructionState::UPGRADING) {
-        swprintf_s(title, L"Mejorar torre");
+        Tower* tower = towerManager.GetTowerAt(selectedRow, selectedCol);
+        if (tower) {
+            int currentLevel = static_cast<int>(tower->GetLevel());
+            int upgradeCost = economy.GetUpgradeCost(currentLevel);
+            swprintf_s(title, L"Mejorar torre - Costo: %d", upgradeCost);
+        } else {
+            swprintf_s(title, L"Mejorar torre");
+        }
     }
     
     RECT textRect = menuRect;
-    textRect.top += 5;
+    textRect.top += 10;
     textRect.left += 10;
     DrawTextW(hdc, title, -1, &textRect, DT_LEFT);
+    
+    // Seleccionar la fuente para el texto normal
+    SelectObject(hdc, normalFont);
     
     // Dibujar botones según el estado
     if (constructionState == ConstructionState::SELECTING_TOWER) {
         // Botón de torre Archer
         RECT archerButton = {
             menuRect.left + 10,
-            menuRect.top + 30,
+            menuRect.top + 45,  // Ajustar posición
             menuRect.left + 90,
-            menuRect.top + 70
+            menuRect.top + 85   // Ajustar posición
         };
         HBRUSH archerBrush = CreateSolidBrush(RGB(0, 150, 0));
         FillRect(hdc, &archerButton, archerBrush);
@@ -473,9 +546,9 @@ void Map::DrawConstructionMenu(HDC hdc) {
         // Botón de torre Gunner
         RECT gunnerButton = {
             menuRect.left + 110,
-            menuRect.top + 30,
+            menuRect.top + 45,  // Ajustar posición
             menuRect.left + 190,
-            menuRect.top + 70
+            menuRect.top + 85   // Ajustar posición
         };
         HBRUSH gunnerBrush = CreateSolidBrush(RGB(150, 0, 0));
         FillRect(hdc, &gunnerButton, gunnerBrush);
@@ -488,9 +561,9 @@ void Map::DrawConstructionMenu(HDC hdc) {
         // Botón de torre Mage
         RECT mageButton = {
             menuRect.left + 210,
-            menuRect.top + 30,
+            menuRect.top + 45,  // Ajustar posición
             menuRect.left + 290,
-            menuRect.top + 70
+            menuRect.top + 85   // Ajustar posición
         };
         HBRUSH mageBrush = CreateSolidBrush(RGB(0, 0, 150));
         FillRect(hdc, &mageButton, mageBrush);
@@ -503,9 +576,9 @@ void Map::DrawConstructionMenu(HDC hdc) {
         // Botón de mejora
         RECT upgradeButton = {
             menuRect.left + 10,
-            menuRect.top + 30,
+            menuRect.top + 45,  // Ajustar posición
             menuRect.left + 190,
-            menuRect.top + 70
+            menuRect.top + 85   // Ajustar posición
         };
         HBRUSH upgradeBrush = CreateSolidBrush(RGB(150, 150, 0));
         FillRect(hdc, &upgradeButton, upgradeBrush);
@@ -515,6 +588,20 @@ void Map::DrawConstructionMenu(HDC hdc) {
         upgradeTextRect.top += 15;
         DrawTextW(hdc, L"Mejorar torre", -1, &upgradeTextRect, DT_CENTER);
     }
+    
+    // Mostrar monedas disponibles
+    SetTextColor(hdc, RGB(255, 215, 0)); // Color dorado
+    WCHAR goldText[64];
+    swprintf_s(goldText, L"Monedas: %d", economy.GetGold());
+    RECT goldRect = menuRect;
+    goldRect.top += 100;  // Ajustar posición
+    goldRect.left += 10;
+    DrawTextW(hdc, goldText, -1, &goldRect, DT_LEFT);
+    
+    // Restaurar la fuente original
+    SelectObject(hdc, oldFont);
+    DeleteObject(titleFont);
+    DeleteObject(normalFont);
     
     DeleteObject(menuBrush);
 }
@@ -557,4 +644,9 @@ bool Map::UpgradeTower() {
     }
     
     return towerManager.UpgradeTower(selectedRow, selectedCol);
+}
+
+// Obtiene una referencia a la economía
+Economy& Map::GetEconomy() {
+    return economy;
 } 
