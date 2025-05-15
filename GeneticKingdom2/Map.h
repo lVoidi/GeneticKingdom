@@ -9,6 +9,9 @@
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
 
+// Incluir gestor de torres
+#include "Tower.h"
+
 // Tamaño de cada celda en píxeles
 #define CELL_SIZE 50
 
@@ -19,6 +22,13 @@ struct Cell {
     bool isEntryPoint = false;       // Indica si es un punto de entrada de enemigos
     bool isBridge = false;           // Indica si es parte del puente del castillo
     bool isConstructionSpot = false; // Indica si es un punto donde se puede construir una torre
+};
+
+// Estados de construcción
+enum class ConstructionState {
+    NONE,            // Sin estado de construcción
+    SELECTING_TOWER, // Seleccionando tipo de torre para construir
+    UPGRADING        // Mejorando una torre existente
 };
 
 // Clase para gestionar el mapa del juego
@@ -63,6 +73,27 @@ public:
     // Obtiene todos los puntos de construcción
     std::vector<std::pair<int, int>> GetConstructionSpots() const;
 
+    // Procesa el clic en el mapa
+    void HandleClick(int x, int y);
+
+    // Dibuja el menú de construcción
+    void DrawConstructionMenu(HDC hdc);
+
+    // Actualiza la lógica del mapa
+    void Update(float deltaTime);
+
+    // Obtiene el estado de construcción actual
+    ConstructionState GetConstructionState() const;
+
+    // Verifica si existe una torre en la posición indicada
+    bool HasTower(int row, int col) const;
+
+    // Construye una torre del tipo especificado en la celda seleccionada
+    bool BuildTower(TowerType type);
+
+    // Mejora la torre en la celda seleccionada
+    bool UpgradeTower();
+
 private:
     std::vector<std::vector<Cell>> grid;                 // Matriz 2D para la cuadrícula
     int numRows;                                         // Número de filas en la cuadrícula
@@ -75,4 +106,12 @@ private:
     
     // Para manejar la imagen de construcción usando GDI+
     Gdiplus::Image* pConstructionImage;
+
+    // Estado de construcción y celdas seleccionadas
+    ConstructionState constructionState;
+    int selectedRow;
+    int selectedCol;
+
+    // Gestor de torres
+    TowerManager towerManager;
 }; 

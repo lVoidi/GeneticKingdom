@@ -132,10 +132,12 @@
     <ClInclude Include="Map.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="Tower.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GeneticKingdom2.cpp" />
     <ClCompile Include="Map.cpp" />
+    <ClCompile Include="Tower.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="GeneticKingdom2.rc" />

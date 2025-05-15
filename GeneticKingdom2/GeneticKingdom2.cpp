@@ -35,6 +35,7 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void                HandleMouseClick(HWND hWnd, int x, int y);
 void                DrawConstructionInfo(HDC hdc, int row, int col);
+void                UpdateGame(float deltaTime);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -222,11 +223,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // Dibujar la cuadrícula del mapa
             gameMap.Draw(hdc);
             
-            // Si hay un punto de construcción seleccionado, mostrar información
-            if (g_showConstructionInfo && g_selectedRow >= 0 && g_selectedCol >= 0) {
-                DrawConstructionInfo(hdc, g_selectedRow, g_selectedCol);
-            }
-            
             EndPaint(hWnd, &ps);
         }
         break;
@@ -294,64 +290,21 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 // Maneja el clic del mouse para seleccionar un punto de construcción
 void HandleMouseClick(HWND hWnd, int x, int y) {
-    // Convertir coordenadas de pantalla a coordenadas de celda
-    int col = x / CELL_SIZE;
-    int row = y / CELL_SIZE;
+    // Utilizar el nuevo método HandleClick del mapa
+    gameMap.HandleClick(x, y);
     
-    // Verificar si se hizo clic en un punto de construcción
-    if (gameMap.IsConstructionSpot(row, col)) {
-        // Actualizar la selección
-        g_selectedRow = row;
-        g_selectedCol = col;
-        g_showConstructionInfo = true;
-    } else {
-        // Si se hizo clic fuera de un punto de construcción, ocultar la información
-        g_showConstructionInfo = false;
-        g_selectedRow = -1;
-        g_selectedCol = -1;
-    }
-    
-    // Forzar repintado para mostrar/ocultar información
+    // Forzar repintado para mostrar/ocultar información o menús
     InvalidateRect(hWnd, NULL, FALSE);
 }
 
 // Dibuja información sobre el punto de construcción seleccionado
 void DrawConstructionInfo(HDC hdc, int row, int col) {
-    // Crear un rectángulo de información cerca del punto de construcción
-    RECT infoRect = {
-        col * CELL_SIZE + CELL_SIZE + 10,
-        row * CELL_SIZE,
-        col * CELL_SIZE + CELL_SIZE + 210,
-        row * CELL_SIZE + 100
-    };
-    
-    // Ajustar el rectángulo si está muy cerca del borde derecho
-    if (infoRect.right > GetSystemMetrics(SM_CXSCREEN) - 20) {
-        infoRect.left = col * CELL_SIZE - 210;
-        infoRect.right = col * CELL_SIZE;
-    }
-    
-    // Crear un fondo para el texto
-    HBRUSH infoBrush = CreateSolidBrush(RGB(0, 0, 0));
-    FillRect(hdc, &infoRect, infoBrush);
-    DeleteObject(infoBrush);
-    
-    // Configurar el color del texto
-    SetTextColor(hdc, RGB(255, 255, 255));
-    SetBkMode(hdc, TRANSPARENT);
-    
-    // Mostrar texto de información
-    WCHAR text[256];
-    swprintf_s(text, L"Punto de Construccion");
-    infoRect.top += 10;
-    infoRect.left += 10;
-    DrawTextW(hdc, text, -1, &infoRect, DT_LEFT);
-    
-    swprintf_s(text, L"Fila: %d, Columna: %d", row, col);
-    infoRect.top += 20;
-    DrawTextW(hdc, text, -1, &infoRect, DT_LEFT);
-    
-    swprintf_s(text, L"Haga clic para construir");
-    infoRect.top += 20;
-    DrawTextW(hdc, text, -1, &infoRect, DT_LEFT);
+    // Esta función ya no se usa directamente, el menú de construcción
+    // se maneja dentro de Map::Draw a través de DrawConstructionMenu
+}
+
+// Actualiza el juego con el tiempo transcurrido
+void UpdateGame(float deltaTime) {
+    // Actualizar la lógica del mapa (torres, enemigos, etc.)
+    gameMap.Update(deltaTime);
 }
