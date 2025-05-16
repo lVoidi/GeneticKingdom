@@ -1,2 +1,17 @@
-﻿  Map.cpp
+﻿  GeneticKingdom2.cpp
+  Map.cpp
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Map.cpp(678,26): warning C4477: 'swprintf_s' : la cadena de formato '%d' requiere un argumento de tipo 'int', pero el argumento variádico 3 tiene el tipo 'size_t'
+      C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Map.cpp(678,26):
+      considere el uso de ' %zd' en la cadena de formato
+  
+  Projectile.cpp
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Projectile.cpp(59,26): warning C4244: 'inicializando': conversión de 'float' a 'int'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Projectile.cpp(60,27): warning C4244: 'inicializando': conversión de 'float' a 'int'; posible pérdida de datos
+  Tower.cpp
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Tower.cpp(294,22): warning C4244: 'inicializando': conversión de 'int' a 'float'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Tower.cpp(306,26): warning C4244: 'inicializando': conversión de 'int' a 'float'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Tower.cpp(307,26): warning C4244: 'inicializando': conversión de 'int' a 'float'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Tower.cpp(397,22): warning C4244: 'inicializando': conversión de 'int' a 'float'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom2\GeneticKingdom2\Tower.cpp(398,22): warning C4244: 'inicializando': conversión de 'int' a 'float'; posible pérdida de datos
+  Generando código...
   GeneticKingdom2.vcxproj -> C:\Users\Admin\source\repos\GeneticKingdom2\x64\Debug\GeneticKingdom2.exe

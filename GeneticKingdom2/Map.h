@@ -3,6 +3,7 @@
 #include <vector>
 #include <Windows.h>
 #include <string>
+#include <random> // Para generar posiciones aleatorias
 
 // Incluir GDI+ de forma segura
 #include <objidl.h>
@@ -14,6 +15,9 @@
 
 // Incluir economía
 #include "Economy.h"
+
+// Incluir gestor de proyectiles
+#include "Projectile.h"
 
 // Tamaño de cada celda en píxeles
 #define CELL_SIZE 50
@@ -32,6 +36,14 @@ enum class ConstructionState {
     NONE,            // Sin estado de construcción
     SELECTING_TOWER, // Seleccionando tipo de torre para construir
     UPGRADING        // Mejorando una torre existente
+};
+
+// Estructura para objetivos dummy
+struct DummyTarget {
+    int row;        // Fila en la cuadrícula
+    int col;        // Columna en la cuadrícula
+    int lifeTime;   // Tiempo de vida en frames
+    COLORREF color; // Color del objetivo
 };
 
 // Clase para gestionar el mapa del juego
@@ -100,6 +112,15 @@ public:
     // Obtiene una referencia a la economía
     Economy& GetEconomy();
 
+    // Métodos para manejar objetivos dummy
+    void AddDummyTarget(int row, int col);
+    void UpdateDummyTargets();
+    void DrawDummyTargets(HDC hdc);
+    const std::vector<DummyTarget>& GetDummyTargets() const;
+    
+    // Método para generar objetivos dummy aleatoriamente
+    void GenerateRandomTargets(int count);
+
 private:
     std::vector<std::vector<Cell>> grid;                 // Matriz 2D para la cuadrícula
     int numRows;                                         // Número de filas en la cuadrícula
@@ -123,4 +144,13 @@ private:
 
     // Economía del juego
     Economy economy;
+    
+    // Gestor de proyectiles
+    ProjectileManager projectileManager;
+
+    // Vector de objetivos dummy
+    std::vector<DummyTarget> dummyTargets;
+    
+    // Generador de números aleatorios
+    std::mt19937 rng;
 }; 

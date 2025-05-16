@@ -1,10 +1,12 @@
 #include "framework.h"
 #include "Tower.h"
+#include <cmath>
+#include "Map.h" // Para incluir la definición completa de DummyTarget
 
 // Constructor de la torre
 Tower::Tower(TowerType type, int row, int col)
     : type(type), level(TowerLevel::LEVEL_1), row(row), col(col), 
-      attackCooldown(0.0f), pTowerImage(NULL)
+      attackCooldown(0.0f), pTowerImage(NULL), showRange(false)
 {
     // Cargar la imagen correspondiente al tipo y nivel
     LoadImage();
@@ -193,18 +195,18 @@ int Tower::GetRange() const
     
     switch (type) {
     case TowerType::ARCHER:
-        baseRange = 3; // Rango medio
-        break;
-    case TowerType::GUNNER:
-        baseRange = 2; // Rango corto
+        baseRange = 5; // Alto alcance
         break;
     case TowerType::MAGE:
-        baseRange = 4; // Rango largo
+        baseRange = 3; // Alcance medio
+        break;
+    case TowerType::GUNNER:
+        baseRange = 2; // Bajo alcance
         break;
     }
     
-    // El rango aumenta con cada nivel
-    return baseRange + static_cast<int>(level) - 1;
+    // El rango aumenta ligeramente con cada nivel
+    return baseRange + (static_cast<int>(level) - 1) / 2;
 }
 
 // Obtiene la velocidad de ataque (disparos por segundo)
@@ -215,18 +217,18 @@ float Tower::GetAttackSpeed() const
     
     switch (type) {
     case TowerType::ARCHER:
-        baseSpeed = 1.0f; // 1 disparo por segundo (nivel 1)
-        break;
-    case TowerType::GUNNER:
-        baseSpeed = 0.7f; // 0.7 disparos por segundo (nivel 1)
+        baseSpeed = 1.2f; // Tiempo de recarga bajo (más disparos por segundo)
         break;
     case TowerType::MAGE:
-        baseSpeed = 0.5f; // 0.5 disparos por segundo (nivel 1)
+        baseSpeed = 0.8f; // Tiempo de recarga medio
+        break;
+    case TowerType::GUNNER:
+        baseSpeed = 0.4f; // Tiempo de recarga alto (menos disparos por segundo)
         break;
     }
     
-    // La velocidad aumenta un 20% con cada nivel
-    return baseSpeed * (1.0f + 0.2f * (static_cast<int>(level) - 1));
+    // La velocidad aumenta un 15% con cada nivel
+    return baseSpeed * (1.0f + 0.15f * (static_cast<int>(level) - 1));
 }
 
 // Obtiene el daño base
@@ -237,13 +239,13 @@ int Tower::GetDamage() const
     
     switch (type) {
     case TowerType::ARCHER:
-        baseDamage = 10; // Daño medio
-        break;
-    case TowerType::GUNNER:
-        baseDamage = 15; // Daño alto
+        baseDamage = 8;  // Poco daño
         break;
     case TowerType::MAGE:
-        baseDamage = 8;  // Daño bajo (pero afecta a área)
+        baseDamage = 15; // Daño medio
+        break;
+    case TowerType::GUNNER:
+        baseDamage = 25; // Alto daño
         break;
     }
     
@@ -251,8 +253,90 @@ int Tower::GetDamage() const
     return baseDamage * static_cast<int>(level);
 }
 
-// Actualiza la lógica de la torre (para luego)
-void Tower::Update(float deltaTime)
+// Dibuja el rango de ataque de la torre
+void Tower::DrawRange(HDC hdc, int cellSize)
+{
+    if (!showRange) {
+        return;
+    }
+    
+    int range = GetRange();
+    
+    // Crear un pincel semitransparente para mostrar el rango
+    COLORREF rangeColor;
+    
+    switch (type) {
+    case TowerType::ARCHER:
+        rangeColor = RGB(0, 150, 0); // Verde para arqueros
+        break;
+    case TowerType::MAGE:
+        rangeColor = RGB(0, 0, 150); // Azul para magos
+        break;
+    case TowerType::GUNNER:
+        rangeColor = RGB(150, 0, 0); // Rojo para cañones
+        break;
+    default:
+        rangeColor = RGB(150, 150, 0); // Amarillo por defecto
+    }
+    
+    try {
+        Gdiplus::Graphics graphics(hdc);
+        
+        // Crear un pincel semitransparente
+        Gdiplus::Color color(80, GetRValue(rangeColor), GetGValue(rangeColor), GetBValue(rangeColor));
+        Gdiplus::SolidBrush brush(color);
+        
+        // Centro de la torre
+        float centerX = (col + 0.5f) * cellSize;
+        float centerY = (row + 0.5f) * cellSize;
+        
+        // Calcular radio en píxeles
+        float radius = range * cellSize;
+        
+        // Dibujar círculo semitransparente
+        graphics.FillEllipse(&brush, centerX - radius, centerY - radius, radius * 2, radius * 2);
+        
+        // También resaltar las celdas dentro del rango
+        Gdiplus::Pen pen(Gdiplus::Color(150, GetRValue(rangeColor), GetGValue(rangeColor), GetBValue(rangeColor)), 2);
+        
+        // Calcular las celdas dentro del rango
+        for (int r = row - range; r <= row + range; r++) {
+            for (int c = col - range; c <= col + range; c++) {
+                // Calcular distancia euclidiana
+                float dx = c - col;
+                float dy = r - row;
+                float distance = sqrtf(dx * dx + dy * dy);
+                
+                // Si está dentro del rango
+                if (distance <= range) {
+                    // Dibujar borde de la celda
+                    graphics.DrawRectangle(&pen, c * cellSize, r * cellSize, cellSize, cellSize);
+                }
+            }
+        }
+    }
+    catch (...) {
+        OutputDebugStringW(L"Error al dibujar el rango de la torre\n");
+    }
+}
+
+// Obtiene el tipo de proyectil para esta torre
+ProjectileType Tower::GetProjectileType() const
+{
+    switch (type) {
+    case TowerType::ARCHER:
+        return ProjectileType::ARROW;
+    case TowerType::MAGE:
+        return ProjectileType::FIREBALL;
+    case TowerType::GUNNER:
+        return ProjectileType::CANNONBALL;
+    default:
+        return ProjectileType::ARROW;
+    }
+}
+
+// Actualiza la lógica de la torre e intenta disparar si es posible (hacia la dirección por defecto)
+void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize)
 {
     // Disminuir tiempo de recarga
     if (attackCooldown > 0) {
@@ -262,7 +346,117 @@ void Tower::Update(float deltaTime)
         }
     }
     
-    // Aquí se implementará luego la lógica de detección de enemigos y disparo
+    // Si el tiempo de recarga ha terminado, disparar
+    if (attackCooldown <= 0) {
+        // Calcular punto objetivo en el máximo rango
+        int range = GetRange();
+        int targetRow = row;
+        int targetCol = col + range; // Por defecto, disparar hacia la derecha
+        
+        // Crear un nuevo proyectil
+        projectileManager.AddProjectile(
+            GetProjectileType(),
+            row, col,            // Posición de inicio
+            targetRow, targetCol, // Posición objetivo
+            cellSize
+        );
+        
+        // Reiniciar el tiempo de recarga según la velocidad de ataque
+        attackCooldown = 1.0f / GetAttackSpeed();
+    }
+}
+
+// Actualiza la lógica de la torre e intenta disparar hacia el objetivo más cercano
+void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<DummyTarget>& targets)
+{
+    // Disminuir tiempo de recarga
+    if (attackCooldown > 0) {
+        attackCooldown -= deltaTime;
+        if (attackCooldown < 0) {
+            attackCooldown = 0;
+        }
+    }
+    
+    // Si el tiempo de recarga ha terminado y hay objetivos, disparar al más cercano
+    if (attackCooldown <= 0 && !targets.empty()) {
+        // Mensaje de depuración para confirmar que la torre intenta disparar
+        WCHAR debugMsg[256];
+        swprintf_s(debugMsg, L"Torre en [%d,%d] intentando disparar. Targets disponibles: %zd\n", 
+                  row, col, targets.size());
+        OutputDebugStringW(debugMsg);
+        
+        // Obtener el rango de la torre
+        int range = GetRange();
+        
+        // Buscar el objetivo más cercano dentro del rango
+        const DummyTarget* closestTarget = nullptr;
+        float minDistance = FLT_MAX;
+        
+        for (const auto& target : targets) {
+            // Calcular distancia euclidiana
+            float dx = target.col - col;
+            float dy = target.row - row;
+            float distance = sqrtf(dx * dx + dy * dy);
+            
+            // Si está dentro del rango y es más cercano que el anterior más cercano
+            if (distance <= range && distance < minDistance) {
+                closestTarget = &target;
+                minDistance = distance;
+            }
+        }
+        
+        // Si se encontró un objetivo en rango, disparar a él
+        if (closestTarget) {
+            // Mensaje de depuración para confirmar disparo a objetivo
+            swprintf_s(debugMsg, L"Torre en [%d,%d] disparando a objetivo en [%d,%d]. Distancia: %.2f\n", 
+                      row, col, closestTarget->row, closestTarget->col, minDistance);
+            OutputDebugStringW(debugMsg);
+            
+            // Crear un nuevo proyectil
+            projectileManager.AddProjectile(
+                GetProjectileType(),
+                row, col,                       // Posición de inicio
+                closestTarget->row, closestTarget->col, // Posición objetivo
+                cellSize
+            );
+            
+            // Reiniciar el tiempo de recarga según la velocidad de ataque
+            attackCooldown = 1.0f / GetAttackSpeed();
+        }
+        // Si no hay objetivos en rango, disparar en la dirección predeterminada
+        else {
+            // Mensaje de depuración - no se encontró objetivo en rango
+            swprintf_s(debugMsg, L"Torre en [%d,%d] no encontró objetivos en rango. Disparando por defecto.\n",
+                      row, col);
+            OutputDebugStringW(debugMsg);
+            
+            int targetRow = row;
+            int targetCol = col + range; // Por defecto, disparar hacia la derecha
+            
+            // Crear un nuevo proyectil
+            projectileManager.AddProjectile(
+                GetProjectileType(),
+                row, col,            // Posición de inicio
+                targetRow, targetCol, // Posición objetivo
+                cellSize
+            );
+            
+            // Reiniciar el tiempo de recarga según la velocidad de ataque
+            attackCooldown = 1.0f / GetAttackSpeed();
+        }
+    }
+}
+
+// Muestra/oculta el rango de la torre
+void Tower::SetShowRange(bool show)
+{
+    showRange = show;
+}
+
+// Comprueba si el rango está visible
+bool Tower::IsShowingRange() const
+{
+    return showRange;
 }
 
 //////////////////////////////////////////////////////////////
@@ -341,10 +535,47 @@ Tower* TowerManager::GetTowerAt(int row, int col) const
     return nullptr;
 }
 
-// Actualiza la lógica de todas las torres
-void TowerManager::Update(float deltaTime)
+// Dibuja los rangos de las torres
+void TowerManager::DrawTowerRanges(HDC hdc, int cellSize)
 {
-    for (Tower* tower : towers) {
-        tower->Update(deltaTime);
+    for (auto& tower : towers) {
+        tower->DrawRange(hdc, cellSize);
+    }
+}
+
+// Actualiza la lógica de todas las torres (disparo por defecto)
+void TowerManager::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize)
+{
+    for (auto& tower : towers) {
+        tower->Update(deltaTime, projectileManager, cellSize);
+    }
+}
+
+// Actualiza la lógica de todas las torres (apuntando a objetivos dummy)
+void TowerManager::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<DummyTarget>& targets)
+{
+    for (auto& tower : towers) {
+        tower->Update(deltaTime, projectileManager, cellSize, targets);
+    }
+}
+
+// Activa la visualización del rango para una torre específica
+void TowerManager::ShowRangeForTower(int row, int col)
+{
+    // Ocultar todos los rangos primero
+    HideAllRanges();
+    
+    // Mostrar el rango de la torre seleccionada
+    Tower* tower = GetTowerAt(row, col);
+    if (tower) {
+        tower->SetShowRange(true);
+    }
+}
+
+// Oculta todos los rangos
+void TowerManager::HideAllRanges()
+{
+    for (auto& tower : towers) {
+        tower->SetShowRange(false);
     }
 } 

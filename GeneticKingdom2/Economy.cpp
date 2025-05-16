@@ -35,8 +35,17 @@ bool Economy::SpendGold(int amount) {
     return false; // No hay suficiente oro
 }
 
-int Economy::GetTowerCost() const {
-    return TOWER_BASE_COST;
+int Economy::GetTowerCost(TowerType type) const {
+    switch (type) {
+    case TowerType::ARCHER:
+        return ARCHER_COST;
+    case TowerType::MAGE:
+        return MAGE_COST;
+    case TowerType::GUNNER:
+        return GUNNER_COST;
+    default:
+        return ARCHER_COST; // Valor por defecto
+    }
 }
 
 int Economy::GetUpgradeCost(int currentLevel) const {

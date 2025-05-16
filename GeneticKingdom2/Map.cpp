@@ -3,7 +3,8 @@
 #include <wincodec.h> // Para cargar imágenes
 
 Map::Map() : numRows(0), numCols(0), entryRow(0), entryCol(0), gridPen(NULL), constructionSpotBrush(NULL),
-            pConstructionImage(NULL), constructionState(ConstructionState::NONE), selectedRow(-1), selectedCol(-1) {
+            pConstructionImage(NULL), constructionState(ConstructionState::NONE), selectedRow(-1), selectedCol(-1),
+            rng(std::random_device()()) { // Inicializar el generador de números aleatorios
     // Crear un pincel para dibujar la cuadrícula (gris claro)
     gridPen = CreatePen(PS_SOLID, 1, RGB(220, 220, 220));
     // Crear un pincel para los puntos de construcción (amarillo con transparencia)
@@ -231,8 +232,17 @@ void Map::Draw(HDC hdc) {
         SelectObject(hdc, oldBrush);
     }
     
+    // Dibujar los objetivos dummy
+    DrawDummyTargets(hdc);
+    
+    // Dibujar los rangos de las torres
+    towerManager.DrawTowerRanges(hdc, CELL_SIZE);
+    
     // Dibujar todas las torres
     towerManager.DrawTowers(hdc, CELL_SIZE);
+    
+    // Dibujar todos los proyectiles
+    projectileManager.DrawProjectiles(hdc);
     
     // Dibujar punto de entrada (rojo)
     HBRUSH entryBrush = CreateSolidBrush(RGB(255, 0, 0));
@@ -347,30 +357,30 @@ void Map::HandleClick(int x, int y) {
         int menuX = x - (selectedCol * CELL_SIZE + CELL_SIZE + 10);
         int menuY = y - (selectedRow * CELL_SIZE);
         
-        // Comprobar clic en botón de torre Archer
-        if (menuX >= 10 && menuX <= 90 && menuY >= 30 && menuY <= 70) {
+        // Comprobar clic en botón de torre Archer - Actualizado para el botón más alto
+        if (menuX >= 10 && menuX <= 90 && menuY >= 45 && menuY <= 95) {
             // Verificar si hay suficiente oro
-            if (economy.SpendGold(economy.GetTowerCost())) {
+            if (economy.SpendGold(economy.GetTowerCost(TowerType::ARCHER))) {
                 BuildTower(TowerType::ARCHER);
                 constructionState = ConstructionState::NONE;
             }
             return;
         }
         
-        // Comprobar clic en botón de torre Gunner
-        if (menuX >= 110 && menuX <= 190 && menuY >= 30 && menuY <= 70) {
+        // Comprobar clic en botón de torre Gunner - Actualizado para el botón más alto
+        if (menuX >= 110 && menuX <= 190 && menuY >= 45 && menuY <= 95) {
             // Verificar si hay suficiente oro
-            if (economy.SpendGold(economy.GetTowerCost())) {
+            if (economy.SpendGold(economy.GetTowerCost(TowerType::GUNNER))) {
                 BuildTower(TowerType::GUNNER);
                 constructionState = ConstructionState::NONE;
             }
             return;
         }
         
-        // Comprobar clic en botón de torre Mage
-        if (menuX >= 210 && menuX <= 290 && menuY >= 30 && menuY <= 70) {
+        // Comprobar clic en botón de torre Mage - Actualizado para el botón más alto
+        if (menuX >= 210 && menuX <= 290 && menuY >= 45 && menuY <= 95) {
             // Verificar si hay suficiente oro
-            if (economy.SpendGold(economy.GetTowerCost())) {
+            if (economy.SpendGold(economy.GetTowerCost(TowerType::MAGE))) {
                 BuildTower(TowerType::MAGE);
                 constructionState = ConstructionState::NONE;
             }
@@ -413,13 +423,16 @@ void Map::HandleClick(int x, int y) {
     
     // Modo normal - verificar si se hizo clic en un punto de construcción o torre
     if (IsConstructionSpot(row, col)) {
-        // Si hay una torre en este punto, mostrar menú de mejora
+        // Si hay una torre en este punto, mostrar menú de mejora y su rango
         if (HasTower(row, col)) {
             Tower* tower = towerManager.GetTowerAt(row, col);
             if (tower && tower->CanUpgrade()) {
                 selectedRow = row;
                 selectedCol = col;
                 constructionState = ConstructionState::UPGRADING;
+                
+                // Mostrar el rango de la torre seleccionada
+                towerManager.ShowRangeForTower(row, col);
             }
         }
         // Si no hay torre, mostrar menú de selección de torre
@@ -427,12 +440,36 @@ void Map::HandleClick(int x, int y) {
             selectedRow = row;
             selectedCol = col;
             constructionState = ConstructionState::SELECTING_TOWER;
+            
+            // Ocultar todos los rangos al seleccionar un punto de construcción
+            towerManager.HideAllRanges();
         }
     } else {
+        // Si se hace clic en un área vacía que no es un punto de construcción,
+        // crear un objetivo dummy en esa posición
+        if (!IsConstructionSpot(row, col) && !HasTower(row, col) && 
+            !grid[row][col].isBridge && !grid[row][col].isEntryPoint) {
+            // Si ya había un estado de construcción activo, cancelarlo
+            if (constructionState != ConstructionState::NONE) {
+                constructionState = ConstructionState::NONE;
+                selectedRow = -1;
+                selectedCol = -1;
+                towerManager.HideAllRanges();
+            }
+            
+            // Añadir objetivo dummy
+            AddDummyTarget(row, col);
+        }
+        
         // Clic fuera de un punto de construcción, cancelar cualquier estado
-        constructionState = ConstructionState::NONE;
-        selectedRow = -1;
-        selectedCol = -1;
+        else if (constructionState != ConstructionState::NONE) {
+            constructionState = ConstructionState::NONE;
+            selectedRow = -1;
+            selectedCol = -1;
+            
+            // Ocultar todos los rangos
+            towerManager.HideAllRanges();
+        }
     }
 }
 
@@ -506,7 +543,8 @@ void Map::DrawConstructionMenu(HDC hdc) {
     // Título del menú
     WCHAR title[256];
     if (constructionState == ConstructionState::SELECTING_TOWER) {
-        swprintf_s(title, L"Seleccione tipo de torre - Costo: %d", economy.GetTowerCost());
+        // Mostrar los costos diferenciados
+        swprintf_s(title, L"Seleccione tipo de torre");
     } else if (constructionState == ConstructionState::UPGRADING) {
         Tower* tower = towerManager.GetTowerAt(selectedRow, selectedCol);
         if (tower) {
@@ -528,50 +566,77 @@ void Map::DrawConstructionMenu(HDC hdc) {
     
     // Dibujar botones según el estado
     if (constructionState == ConstructionState::SELECTING_TOWER) {
-        // Botón de torre Archer
+        // Botón de torre Archer - Aumentamos la altura del botón
         RECT archerButton = {
             menuRect.left + 10,
             menuRect.top + 45,  // Ajustar posición
             menuRect.left + 90,
-            menuRect.top + 85   // Ajustar posición
+            menuRect.top + 95   // Aumentar la altura del botón
         };
         HBRUSH archerBrush = CreateSolidBrush(RGB(0, 150, 0));
         FillRect(hdc, &archerButton, archerBrush);
         DeleteObject(archerBrush);
         
-        RECT archerTextRect = archerButton;
-        archerTextRect.top += 15;
-        DrawTextW(hdc, L"Archer", -1, &archerTextRect, DT_CENTER);
+        // Definimos un rectángulo para el nombre y otro para el precio
+        RECT archerNameRect = archerButton;
+        archerNameRect.top += 10;
+        archerNameRect.bottom = archerNameRect.top + 20;
+        DrawTextW(hdc, L"Archer", -1, &archerNameRect, DT_CENTER);
         
-        // Botón de torre Gunner
+        RECT archerPriceRect = archerButton;
+        archerPriceRect.top += 35;
+        archerPriceRect.bottom = archerPriceRect.top + 20;
+        WCHAR archerPrice[16];
+        swprintf_s(archerPrice, L"%d", economy.GetTowerCost(TowerType::ARCHER));
+        DrawTextW(hdc, archerPrice, -1, &archerPriceRect, DT_CENTER);
+        
+        // Botón de torre Gunner - Aumentamos la altura del botón
         RECT gunnerButton = {
             menuRect.left + 110,
             menuRect.top + 45,  // Ajustar posición
             menuRect.left + 190,
-            menuRect.top + 85   // Ajustar posición
+            menuRect.top + 95   // Aumentar la altura del botón
         };
         HBRUSH gunnerBrush = CreateSolidBrush(RGB(150, 0, 0));
         FillRect(hdc, &gunnerButton, gunnerBrush);
         DeleteObject(gunnerBrush);
         
-        RECT gunnerTextRect = gunnerButton;
-        gunnerTextRect.top += 15;
-        DrawTextW(hdc, L"Gunner", -1, &gunnerTextRect, DT_CENTER);
+        // Definimos un rectángulo para el nombre y otro para el precio
+        RECT gunnerNameRect = gunnerButton;
+        gunnerNameRect.top += 10;
+        gunnerNameRect.bottom = gunnerNameRect.top + 20;
+        DrawTextW(hdc, L"Gunner", -1, &gunnerNameRect, DT_CENTER);
         
-        // Botón de torre Mage
+        RECT gunnerPriceRect = gunnerButton;
+        gunnerPriceRect.top += 35;
+        gunnerPriceRect.bottom = gunnerPriceRect.top + 20;
+        WCHAR gunnerPrice[16];
+        swprintf_s(gunnerPrice, L"%d", economy.GetTowerCost(TowerType::GUNNER));
+        DrawTextW(hdc, gunnerPrice, -1, &gunnerPriceRect, DT_CENTER);
+        
+        // Botón de torre Mage - Aumentamos la altura del botón
         RECT mageButton = {
             menuRect.left + 210,
             menuRect.top + 45,  // Ajustar posición
             menuRect.left + 290,
-            menuRect.top + 85   // Ajustar posición
+            menuRect.top + 95   // Aumentar la altura del botón
         };
         HBRUSH mageBrush = CreateSolidBrush(RGB(0, 0, 150));
         FillRect(hdc, &mageButton, mageBrush);
         DeleteObject(mageBrush);
         
-        RECT mageTextRect = mageButton;
-        mageTextRect.top += 15;
-        DrawTextW(hdc, L"Mage", -1, &mageTextRect, DT_CENTER);
+        // Definimos un rectángulo para el nombre y otro para el precio
+        RECT mageNameRect = mageButton;
+        mageNameRect.top += 10;
+        mageNameRect.bottom = mageNameRect.top + 20;
+        DrawTextW(hdc, L"Mage", -1, &mageNameRect, DT_CENTER);
+        
+        RECT magePriceRect = mageButton;
+        magePriceRect.top += 35;
+        magePriceRect.bottom = magePriceRect.top + 20;
+        WCHAR magePrice[16];
+        swprintf_s(magePrice, L"%d", economy.GetTowerCost(TowerType::MAGE));
+        DrawTextW(hdc, magePrice, -1, &magePriceRect, DT_CENTER);
     } else if (constructionState == ConstructionState::UPGRADING) {
         // Botón de mejora
         RECT upgradeButton = {
@@ -594,7 +659,7 @@ void Map::DrawConstructionMenu(HDC hdc) {
     WCHAR goldText[64];
     swprintf_s(goldText, L"Monedas: %d", economy.GetGold());
     RECT goldRect = menuRect;
-    goldRect.top += 100;  // Ajustar posición
+    goldRect.top += 115;  // Incrementar para evitar superposición con los botones más altos
     goldRect.left += 10;
     DrawTextW(hdc, goldText, -1, &goldRect, DT_LEFT);
     
@@ -608,10 +673,56 @@ void Map::DrawConstructionMenu(HDC hdc) {
 
 // Actualiza la lógica del mapa
 void Map::Update(float deltaTime) {
-    // Actualizar torres
-    towerManager.Update(deltaTime);
+    // Mensaje de depuración
+    WCHAR debugMsg[256];
+    swprintf_s(debugMsg, L"Map::Update - deltaTime: %.4f, Objetivos: %zd, Torres: %d\n", 
+              deltaTime, dummyTargets.size(), towerManager.GetTowerCount());
+    OutputDebugStringW(debugMsg);
     
-    // En el futuro, aquí se actualizará la lógica de movimiento de enemigos
+    // Actualizar torres y hacer que apunten a objetivos dummy si existen
+    if (!dummyTargets.empty()) {
+        towerManager.Update(deltaTime, projectileManager, CELL_SIZE, dummyTargets);
+    } else {
+        towerManager.Update(deltaTime, projectileManager, CELL_SIZE);
+    }
+    
+    // Actualizar proyectiles
+    projectileManager.Update(deltaTime);
+    
+    // Mensaje de depuración sobre proyectiles
+    swprintf_s(debugMsg, L"Proyectiles activos: %zd\n", 
+              projectileManager.GetProjectiles().size());
+    OutputDebugStringW(debugMsg);
+    
+    // Comprobar colisiones entre proyectiles y objetivos dummy
+    if (!dummyTargets.empty()) {
+        // Obtener índices de objetivos impactados
+        std::vector<size_t> hitTargets = projectileManager.CheckCollisions(dummyTargets, CELL_SIZE);
+        
+        // Mensaje de depuración sobre colisiones
+        if (!hitTargets.empty()) {
+            swprintf_s(debugMsg, L"Colisiones detectadas: %zd\n", hitTargets.size());
+            OutputDebugStringW(debugMsg);
+        }
+        
+        // Eliminar objetivos impactados (desde el índice más alto al más bajo para evitar problemas)
+        std::sort(hitTargets.begin(), hitTargets.end(), std::greater<size_t>());
+        for (size_t index : hitTargets) {
+            if (index < dummyTargets.size()) {
+                swprintf_s(debugMsg, L"Eliminando objetivo dummy en posición %zd\n", index);
+                OutputDebugStringW(debugMsg);
+                dummyTargets.erase(dummyTargets.begin() + index);
+            }
+        }
+    }
+    
+    // Actualizar objetivos dummy
+    UpdateDummyTargets();
+    
+    // Generar nuevos objetivos aleatoriamente (2% de probabilidad por frame)
+    if (rand() % 100 < 2 && dummyTargets.size() < 5) {
+        GenerateRandomTargets(1);
+    }
 }
 
 // Obtiene el estado de construcción actual
@@ -649,4 +760,109 @@ bool Map::UpgradeTower() {
 // Obtiene una referencia a la economía
 Economy& Map::GetEconomy() {
     return economy;
+}
+
+// Añade un objetivo dummy en la posición especificada
+void Map::AddDummyTarget(int row, int col) {
+    // Verificar que las coordenadas estén dentro de los límites
+    if (row < 0 || row >= numRows || col < 0 || col >= numCols) {
+        return;
+    }
+    
+    // Mensaje de depuración
+    WCHAR debugMsg[256];
+    swprintf_s(debugMsg, L"Añadiendo objetivo dummy en [%d,%d]\n", row, col);
+    OutputDebugStringW(debugMsg);
+    
+    // Crear un color aleatorio para el objetivo
+    COLORREF colors[] = {
+        RGB(255, 0, 0),    // Rojo
+        RGB(0, 0, 255),    // Azul
+        RGB(255, 165, 0),  // Naranja
+        RGB(128, 0, 128),  // Púrpura
+        RGB(255, 255, 0)   // Amarillo
+    };
+    
+    int colorIndex = rand() % 5;
+    
+    // Crear el objetivo y añadirlo al vector
+    DummyTarget target;
+    target.row = row;
+    target.col = col;
+    target.lifeTime = 500; // 500 frames de vida (aproximadamente 8-10 segundos)
+    target.color = colors[colorIndex];
+    
+    dummyTargets.push_back(target);
+    swprintf_s(debugMsg, L"Total de objetivos dummy: %zd\n", dummyTargets.size());
+    OutputDebugStringW(debugMsg);
+}
+
+// Actualiza los objetivos dummy
+void Map::UpdateDummyTargets() {
+    // Actualizar tiempo de vida de los objetivos y eliminar los que han expirado
+    auto it = dummyTargets.begin();
+    while (it != dummyTargets.end()) {
+        it->lifeTime--;
+        
+        // Si el tiempo de vida ha terminado, eliminar el objetivo
+        if (it->lifeTime <= 0) {
+            it = dummyTargets.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+// Dibuja los objetivos dummy
+void Map::DrawDummyTargets(HDC hdc) {
+    for (const auto& target : dummyTargets) {
+        // Crear un pincel con el color del objetivo
+        HBRUSH targetBrush = CreateSolidBrush(target.color);
+        
+        // Dibujar el objetivo como un círculo
+        Gdiplus::Graphics graphics(hdc);
+        Gdiplus::SolidBrush brush(Gdiplus::Color(
+            255, // Alpha
+            GetRValue(target.color),
+            GetGValue(target.color),
+            GetBValue(target.color)
+        ));
+        
+        // Centro de la celda
+        float centerX = (target.col + 0.5f) * CELL_SIZE;
+        float centerY = (target.row + 0.5f) * CELL_SIZE;
+        
+        // Dibujar el objetivo
+        float radius = CELL_SIZE * 0.3f; // 30% del tamaño de la celda
+        graphics.FillEllipse(&brush, centerX - radius, centerY - radius, radius * 2, radius * 2);
+        
+        // Dibujar un borde blanco
+        Gdiplus::Pen pen(Gdiplus::Color(255, 255, 255, 255), 2);
+        graphics.DrawEllipse(&pen, centerX - radius, centerY - radius, radius * 2, radius * 2);
+        
+        // Liberar recursos
+        DeleteObject(targetBrush);
+    }
+}
+
+// Obtiene los objetivos dummy
+const std::vector<DummyTarget>& Map::GetDummyTargets() const {
+    return dummyTargets;
+}
+
+// Genera objetivos dummy aleatorios
+void Map::GenerateRandomTargets(int count) {
+    // Distribuir uniformemente en el mapa, excepto en construcciones y puentes
+    std::uniform_int_distribution<int> rowDist(1, numRows - 2);
+    std::uniform_int_distribution<int> colDist(1, numCols - 2);
+    
+    for (int i = 0; i < count; i++) {
+        int row = rowDist(rng);
+        int col = colDist(rng);
+        
+        // Asegurarse de que no es un punto de construcción ni está ocupado
+        if (!IsConstructionSpot(row, col) && !grid[row][col].isBridge && !grid[row][col].occupied) {
+            AddDummyTarget(row, col);
+        }
+    }
 } 

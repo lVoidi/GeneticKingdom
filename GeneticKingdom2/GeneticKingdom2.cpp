@@ -3,30 +3,34 @@
 
 #include "framework.h"
 #include "GeneticKingdom2.h"
-#include <windowsx.h> // Para GET_X_LPARAM y GET_Y_LPARAM
+#include "Map.h"
+#include <windowsx.h> // Para GET_X_LPARAM, GET_Y_LPARAM
 #include <wingdi.h>   // Para funciones de GDI
 #include <objidl.h>   // Necesario para GDI+
 #include <gdiplus.h>  // Para GDI+
 #pragma comment(lib, "Msimg32.lib") // Para TransparentBlt
 #pragma comment(lib, "gdiplus.lib") // Para GDI+
 
-// Ahora incluimos Map.h que ya tiene las definiciones de GDI+ correctas
-#include "Map.h"
-
 using namespace Gdiplus;
 
 #define MAX_LOADSTRING 100
+#define TIMER_ID 1
+#define FPS 30 // Reducido de 60 a 30 fotogramas por segundo para una mejor interacción con los menús
 
 // Variables globales:
 HINSTANCE hInst;                                // instancia actual
 WCHAR szTitle[MAX_LOADSTRING];                  // Texto de la barra de título
 WCHAR szWindowClass[MAX_LOADSTRING];            // nombre de clase de la ventana principal
-HBRUSH g_hBackgroundBrush;                      // Pincel para el color de fondo
-Map gameMap;                                    // Objeto del mapa del juego
+HBRUSH g_hBackgroundBrush = NULL;               // Pincel para el color de fondo
+Gdiplus::GdiplusStartupInput g_gdiplusStartupInput;
+ULONG_PTR g_gdiplusToken;
+Map gameMap;                                    // Instancia del mapa del juego
 bool g_showConstructionInfo = false;            // Mostrar información de construcción
 int g_selectedRow = -1;                         // Fila seleccionada para construcción
 int g_selectedCol = -1;                         // Columna seleccionada para construcción
-ULONG_PTR g_gdiplusToken;                       // Token para GDI+
+DWORD g_lastUpdateTime = 0;                     // Último tiempo de actualización
+bool g_gamePaused = false;                      // Indica si el juego está pausado
+RECT g_menuRect = { 0 };                        // Rect del menú actual
 
 // Declaraciones de funciones adelantadas incluidas en este módulo de código:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -46,8 +50,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // Inicializar GDI+
-    GdiplusStartupInput gdiplusStartupInput;
-    Status status = GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, NULL);
+    Status status = GdiplusStartup(&g_gdiplusToken, &g_gdiplusStartupInput, NULL);
     if (status != Ok) {
         MessageBoxW(NULL, L"Error al inicializar GDI+", L"Error", MB_OK | MB_ICONERROR);
         return FALSE;
@@ -173,6 +176,12 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
        SWP_FRAMECHANGED
    );
 
+   // Establecer temporizadores:
+   // Uno para la lógica del juego
+   SetTimer(hWnd, TIMER_ID, 1000 / FPS, NULL);
+   
+   g_lastUpdateTime = GetTickCount();
+
    ShowWindow(hWnd, SW_SHOWMAXIMIZED); // Usar SW_SHOWMAXIMIZED para asegurar pantalla completa
    UpdateWindow(hWnd);
 
@@ -265,7 +274,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_ERASEBKGND:
         // No borrar el fondo aquí, se hará en WM_PAINT
         return TRUE;
+    case WM_TIMER:
+        if (wParam == TIMER_ID) {
+            // Calcular tiempo transcurrido desde la última actualización
+            DWORD currentTime = GetTickCount();
+            float deltaTime = (currentTime - g_lastUpdateTime) / 1000.0f; // Convertir a segundos
+            g_lastUpdateTime = currentTime;
+            
+            // Actualizar la lógica del juego
+            UpdateGame(deltaTime);
+            
+            // Forzar redibujado
+            InvalidateRect(hWnd, NULL, FALSE);
+        }
+        break;
     case WM_DESTROY:
+        // Detener los temporizadores
+        KillTimer(hWnd, TIMER_ID);
         PostQuitMessage(0);
         break;
     default:
