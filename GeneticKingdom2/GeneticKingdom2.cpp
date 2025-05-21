@@ -46,6 +46,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
+    /*
+        APIENTRY: Es una macro que define el punto de entrada de la aplicación. 
+        wWinMain: Es la función principal de la aplicación.
+        _In_ HINSTANCE hInstance: Es el identificador de la instancia de la aplicación.
+        _In_opt_ HINSTANCE hPrevInstance: Es el identificador de la instancia anterior de la aplicación.
+        _In_ LPWSTR    lpCmdLine: Es la línea de comandos de la aplicación.
+        _In_ int       nCmdShow: Es el modo en que se mostrará la ventana principal de la aplicación.
+    */
+
+    // Evita warnings del compilador
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
@@ -77,14 +87,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GENETICKINGDOM2));
 
-    MSG msg;
 
-    // Bucle principal de mensajes:
+    // Esto es lo que windows usa para recibir mensajes de la ventana principal, como inputs, etc
+    MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0))
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
         {
             TranslateMessage(&msg);
+            // Esto es lo que envia mensajes a la ventana principal
             DispatchMessage(&msg);
         }
     }
@@ -107,6 +118,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 //  FUNCIÓN: MyRegisterClass()
 //
 //  PROPÓSITO: Registra la clase de ventana.
+//
+//  ATOM: Es una macro que define el tipo de dato para las clases de ventanas.
+//  HINSTANCE: Es el identificador de la instancia de la aplicación.
+//  MyRegisterClass: Es el nombre de la función que registra la clase de ventana.
 //
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
@@ -202,6 +217,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_CREATE:
+        // Inicialización de GDI+
+        Gdiplus::GdiplusStartup(&g_gdiplusToken, &g_gdiplusStartupInput, NULL);
+        // Aquí puedes inicializar otros elementos si es necesario
+        break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
@@ -224,73 +244,75 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
             
-            // Pintar todo el fondo de verde
-            RECT rc;
-            GetClientRect(hWnd, &rc);
-            FillRect(hdc, &rc, g_hBackgroundBrush);
-            
-            // Dibujar la cuadrícula del mapa
-            gameMap.Draw(hdc);
-            
+            RECT clientRect;
+            GetClientRect(hWnd, &clientRect);
+            HDC hdcMem = CreateCompatibleDC(hdc);
+            HBITMAP hbmMem = CreateCompatibleBitmap(hdc, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
+            HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
+
+            HBRUSH hbrBackground = CreateSolidBrush(RGB(14, 129, 60)); // Verde #0e813c
+            FillRect(hdcMem, &clientRect, hbrBackground);
+            DeleteObject(hbrBackground);
+
+            // ---- INICIO DE PRUEBA DE DIBUJO ----
+            RECT testRect = { 50, 50, 200, 200 }; // Coordenadas del rectángulo de prueba
+            HBRUSH testBrush = CreateSolidBrush(RGB(255, 0, 0)); // Color rojo
+            FillRect(hdcMem, &testRect, testBrush);
+            DeleteObject(testBrush);
+            // ---- FIN DE PRUEBA DE DIBUJO ----
+
+            // DIBUJAR EL MAPA Y TODOS SUS COMPONENTES EN EL BACK BUFFER
+            gameMap.Draw(hdcMem); 
+
+            BitBlt(hdc, 0, 0, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, hdcMem, 0, 0, SRCCOPY);
+
+            SelectObject(hdcMem, hbmOld);
+            DeleteObject(hbmMem);
+            DeleteDC(hdcMem);
+
             EndPaint(hWnd, &ps);
         }
         break;
     case WM_LBUTTONDOWN:
         {
-            // Manejar clic del mouse para seleccionar puntos de construcción
             int xPos = GET_X_LPARAM(lParam);
             int yPos = GET_Y_LPARAM(lParam);
-            HandleMouseClick(hWnd, xPos, yPos);
+            gameMap.HandleClick(xPos, yPos);
+            InvalidateRect(hWnd, NULL, FALSE); 
         }
         break;
     case WM_KEYDOWN:
-        // Permitir salir con la tecla ESC
         if (wParam == VK_ESCAPE)
         {
             DestroyWindow(hWnd);
         }
-        // Añadir monedas con la tecla M (para pruebas)
-        else if (wParam == 'M')
+        else if (wParam == 'M') // Tecla M para añadir oro (para pruebas)
         {
             gameMap.GetEconomy().AddGold(100);
             InvalidateRect(hWnd, NULL, FALSE);
         }
         break;
-    // Procesar mensajes para evitar el redimensionamiento
-    case WM_GETMINMAXINFO:
-        {
-            // Esto evita que la ventana se redimensione
-            LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
-            lpMMI->ptMaxSize.x = GetSystemMetrics(SM_CXSCREEN);
-            lpMMI->ptMaxSize.y = GetSystemMetrics(SM_CYSCREEN);
-            lpMMI->ptMaxPosition.x = 0;
-            lpMMI->ptMaxPosition.y = 0;
-            lpMMI->ptMinTrackSize.x = GetSystemMetrics(SM_CXSCREEN);
-            lpMMI->ptMinTrackSize.y = GetSystemMetrics(SM_CYSCREEN);
-            lpMMI->ptMaxTrackSize.x = GetSystemMetrics(SM_CXSCREEN);
-            lpMMI->ptMaxTrackSize.y = GetSystemMetrics(SM_CYSCREEN);
-        }
-        break;
     case WM_ERASEBKGND:
-        // No borrar el fondo aquí, se hará en WM_PAINT
-        return TRUE;
+        return TRUE; 
     case WM_TIMER:
         if (wParam == TIMER_ID) {
-            // Calcular tiempo transcurrido desde la última actualización
             DWORD currentTime = GetTickCount();
-            float deltaTime = (currentTime - g_lastUpdateTime) / 1000.0f; // Convertir a segundos
+            float deltaTime = (currentTime - g_lastUpdateTime) / 1000.0f;
+            // Limitar deltaTime a un máximo para evitar saltos grandes si hay lag o pausas
+            if (deltaTime > 0.1f) deltaTime = 0.1f;
             g_lastUpdateTime = currentTime;
             
-            // Actualizar la lógica del juego
-            UpdateGame(deltaTime);
+            if (!g_gamePaused) {
+                UpdateGame(deltaTime);
+            }
             
-            // Forzar redibujado
             InvalidateRect(hWnd, NULL, FALSE);
         }
         break;
     case WM_DESTROY:
-        // Detener los temporizadores
-        KillTimer(hWnd, TIMER_ID);
+        // Finalización de GDI+
+        Gdiplus::GdiplusShutdown(g_gdiplusToken);
+        KillTimer(hWnd, TIMER_ID); // Detener el timer al destruir la ventana
         PostQuitMessage(0);
         break;
     default:

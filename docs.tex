@@ -1,0 +1,287 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Please note that whilst this template provides a 
+% preview of the typeset manuscript for submission, it 
+% will not necessarily be the final publication layout.
+%
+% letterpaper/a4paper: US/UK paper size toggle
+% num-refs/alpha-refs: numeric/author-year citation and bibliography toggle
+
+%\documentclass[letterpaper]{oup-contemporary}
+\documentclass[a4paper,num-refs]{oup-contemporary}
+
+%%% Journal toggle; only specific options recognised.
+%%% (Only "gigascience" and "general" are implemented now. Support for other journals is planned.)
+\journal{general}
+
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{listings}
+\usepackage{amsmath}
+
+%%% Flushend: You can add this package to automatically balance the final page, but if things go awry (e.g. section contents appearing out-of-order or entire blocks or paragraphs are coloured), remove it!
+% \usepackage{flushend}
+
+\title{Genetic Kingdom}
+
+%%% Use the \authfn to add symbols for additional footnotes, if any. 1 is reserved for correspondence emails; then continuing with 2 etc for contributions.
+\author[1,\authfn{1},\authfn{2}]{David Garcia Cruz}
+\author[2,\authfn{1},\authfn{2}]{Rodrigo Arce Bastos}
+
+\affil[1]{Tecnologico de Costa Rica}
+
+%%% Author Notes
+\authnote{\authfn{1}r.arce.1@estudiantec.cr
+\authfn{2}d.garcia.1@estudiantec.cr}
+
+%%% Paper category
+%%\papercat{Paper}
+
+%%% "Short" author for running page header
+\runningauthor{First et al.}
+
+%%% Should only be set by an editor
+\jvolume{1}
+\jnumber{0}
+\jyear{2025}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=true,
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    prebreak = \raisebox{0ex}[0ex][0ex]{\ensuremath{\hookleftarrow}}
+}
+\lstset{style=mystyle}
+\renewcommand\lstlistingname{Algoritmo}
+\renewcommand\lstlistlistingname{Algoritmos}
+\renewcommand{\abstractname}{Introducción}
+\renewcommand*\contentsname{Tabla de Contenidos}
+
+\begin{document}
+
+\begin{frontmatter}
+\maketitle
+\begin{abstract} 
+Genetic Kingdom es un juego de estrategia del tipo Tower Defense, desarrollado en C++. El objetivo principal del proyecto es combinar algoritmos genéticos y técnicas de pathfinding para crear un videojuego, donde los enemigos evolucionan con cada oleada, adaptándose a las defensas del jugador.
+
+El juego se centra en la colocación estratégica de torres para evitar que lo enemigos crucen un puente, mientras los enemigos utilizan el algoritmo A* para ir hacia el puente. A medida que avanzan las oleadas, los enemigos mejoran sus atributos mediante un algoritmo genético, lo que incrementa la dificultad y requiere que el jugador optimice sus defensas continuamente.
+
+En este documento, se detallará el diseño del sistema, los algoritmos implementados y las soluciones a los problemas presentados durante el desarrollo y se llevara un control de versiones usando GitHub.
+\end{abstract}
+ 
+\end{frontmatter}
+
+\tableofcontents
+
+\section{Descripción del problema}
+El proyecto consiste en desarrollar un videojuego Tower Defense desarrollado en C++ que plantea desafíos como la implementacion de algoritmos de pathfinding y de genetica para la evolución adaptativa de enemigos que mejoran sus atributos en cada oleada con pathfinding (A*) para que las unidades encuentren camino óptimo hacia el puente, evitando torres. El jugador debe poder utilizar tres tipos de torres (arqueros, magos, artilleros), cada una mejorable con oro que se gana al matar a los enemigos. El proyecto exige una  una interfaz intuitiva que muestre estadísticas clave al usuario como oleadas, fitness de enemigos y niveles de torres. 
+
+\section{Solución al problema}
+Para solucionar el problema planteado se trabajó con Visual Studio 2022 y su interfaz gráfica en C++ para desarrollar el videojuego. A continuación, se describe cómo se implementó cada uno de los requerimientos del proyecto, mostrando las soluciones técnicas aplicadas y los desafíos superados durante el desarrollo.
+
+\subsection{Requerimiento 001: Definición del Mapa}
+El mapa del juego se ha implementado como una cuadrícula de tamaño fijo en la clase Map, gestionada a través de los archivos Map.cpp y Map.h. Esta cuadrícula está compuesta por celdas de 50x50 píxeles, definidas por la constante CELL_SIZE, que conforman el campo de batalla. El sistema de mapa implementado:
+
+\begin{itemize}
+    \item Define un único punto de ingreso para los enemigos (setEntryPoint) y la ubicación del puente del castillo (setBridge) en el lado opuesto. Visualmente, estos están destacados con colores distintivos: el punto de entrada en rojo y el puente en azul.
+    \item Permite la colocación de torres únicamente en espacios de construcción predefinidos, gestionados mediante el vector constructionSpots y la función LoadConstructionSpots().
+    \item Asegura que la colocación de torres no bloquee todos los posibles caminos hacia el puente mediante la validación de rutas con el algoritmo A* implementado.
+    \item Gestiona la representación visual del mapa utilizando GDI+ (inicializado en GeneticKingdom2.cpp) y procesa las interacciones del usuario a través del método HandleClick().
+\end{itemize}
+
+La interacción con el mapa se implementó de forma intuitiva, permitiendo a los jugadores seleccionar espacios de construcción con un clic, lo que activa menús contextuales para la selección de torres y mejoras.
+
+\subsection{Requerimiento 002: Atributos y Funcionamiento de Torres}
+Las torres del juego, implementadas en Tower.cpp y Tower.h, poseen los siguientes atributos que definen su comportamiento:
+
+\begin{itemize}
+    \item \textbf{Daño:} Implementado en el método GetDamage(), determina la cantidad de puntos de vida que resta a un enemigo por ataque.
+    \item \textbf{Velocidad de ataque:} Gestionada por GetAttackSpeed() y el sistema de cooldown (attackCooldown), define la frecuencia con la que una torre puede disparar.
+    \item \textbf{Alcance:} Implementado en GetRange(), establece la distancia máxima a la que una torre puede detectar y atacar enemigos.
+    \item \textbf{Tiempo de regeneración del poder especial:} Incluido en la estructura de la torre para habilidades especiales.
+    \item \textbf{Tiempo de recarga de ataque:} Controlado mediante el atributo attackCooldown que se actualiza con cada disparo.
+\end{itemize}
+
+Las torres funcionan bajo un sistema de detección y ataque:
+\begin{itemize}
+    \item Escanean continuamente el área dentro de su alcance, implementado en los métodos Update().
+    \item Cuando un enemigo está en el alcance y el tiempo de recarga ha concluido, la torre dispara un proyectil, creado a través de ProjectileManager::AddProjectile().
+    \item Los proyectiles, implementados en Projectile.cpp y Projectile.h, siguen una trayectoria hacia el objetivo y causan daño al impactar.
+    \item Al derrotar a un enemigo, el sistema de economía (Economy.cpp, Economy.h) otorga al jugador una cantidad de oro mediante el método AddGold().
+\end{itemize}
+
+Cada tipo de torre tiene sus propias imágenes y animaciones, cargadas dinámicamente con GDI+ para representar visualmente sus características y nivel de mejora.
+
+\subsection{Requerimiento 003: Mejoras de Torres}
+El sistema de mejoras de torres está implementado en la clase Tower mediante el método Upgrade(). Todas las torres pueden ser mejoradas hasta tres niveles, con los siguientes componentes:
+
+\begin{itemize}
+    \item \textbf{Niveles de mejora:} Implementados mediante la enumeración TowerLevel en Tower.h, que define los niveles LEVEL_1, LEVEL_2 y LEVEL_3.
+    \item \textbf{Incremento de atributos:} Cada nivel de mejora aumenta los atributos de la torre. Por ejemplo, el rango de ataque se incrementa en el método GetRange() según el nivel actual.
+    \item \textbf{Ataques especiales:} Las torres tienen la capacidad de ejecutar ataques especiales, con probabilidad y efectos que varían según el tipo y nivel.
+    \item \textbf{Costo de mejoras:} Los costos están definidos como constantes (UPGRADE_LEVEL_2_COST y UPGRADE_LEVEL_3_COST) en Economy.h y se aplican mediante el método GetUpgradeCost(). El sistema verifica la disponibilidad de oro con SpendGold() antes de permitir la mejora.
+\end{itemize}
+
+Visualmente, cada nivel de torre tiene una apariencia distinta, cargada mediante el método LoadImage() que selecciona el recurso gráfico apropiado según el tipo y nivel actual de la torre.
+
+\subsection{Requerimiento 004: Tipos de Torres}
+Se implementaron tres tipos de torres distintos, definidos mediante la enumeración TowerType en Tower.h:
+
+\begin{itemize}
+    \item \textbf{Torre de Arqueros (ARCHER):}
+    \begin{itemize}
+        \item Costo: Bajo (75 unidades de oro, definido como ARCHER\_COST en Economy.h).
+        \item Alcance: Alto, implementado para cubrir un área extensa.
+        \item Daño: Bajo, pero con alta frecuencia de disparo.
+        \item Tiempo de recarga de ataque: Bajo, permitiendo ataques rápidos y frecuentes.
+        \item Proyectil: Flechas (tipo ARROW en ProjectileType).
+    \end{itemize}
+    \item \textbf{Torre de Magos (MAGE):}
+    \begin{itemize}
+        \item Costo: Medio (150 unidades de oro, definido como MAGE\_COST en Economy.h).
+        \item Alcance: Medio, cubriendo un área balanceada.
+        \item Daño: Medio, con efectos especiales como daño de área.
+        \item Tiempo de recarga de ataque: Medio, equilibrando poder y frecuencia.
+        \item Proyectil: Bolas de fuego (tipo FIREBALL en ProjectileType).
+    \end{itemize}
+    \item \textbf{Torre de Artilleros (GUNNER):}
+    \begin{itemize}
+        \item Costo: Alto (225 unidades de oro, definido como GUNNER_COST en Economy.h).
+        \item Alcance: Bajo, requiriendo posicionamiento estratégico.
+        \item Daño: Alto, capaz de eliminar enemigos poderosos.
+        \item Tiempo de recarga de ataque: Alto, compensando su gran poder.
+        \item Proyectil: Balas de cañón (tipo CANNONBALL en ProjectileType).
+    \end{itemize}
+\end{itemize}
+
+Cada tipo de torre presenta características visuales distintivas y comportamientos únicos, lo que permite diversas estrategias según la composición de los enemigos y la configuración del mapa.
+
+\subsection{Requerimiento 005: Colocación de Torres por el Jugador}
+La colocación de torres se implementó a través de un sistema interactivo:
+
+\begin{itemize}
+    \item El jugador selecciona un lugar disponible para construcción, identificado con marcadores visuales. Esto se gestiona en el método HandleClick() de la clase Map.
+    \item Al seleccionar un lugar, se muestra un menú contextual mediante DrawConstructionMenu() que presenta las opciones de torres disponibles.
+    \item Los costos de cada tipo de torre están claramente indicados (implementados con constantes en Economy.h) y el sistema verifica automáticamente si el jugador posee suficiente oro mediante Economy::SpendGold().
+    \item Una vez seleccionado el tipo, la torre se construye en la posición mediante TowerManager::AddTower() y se marca la celda como ocupada con SetCellOccupied().
+\end{itemize}
+
+El sistema valida que la colocación no bloquee todos los caminos hacia el puente y permite cancelar la construcción si el jugador cambia de opinión antes de confirmar.
+
+\subsection{Requerimiento 006: Tipos de Enemigos y Atributos}
+Se implementaron cuatro tipos de enemigos con características distintivas:
+
+\begin{itemize}
+    \item \textbf{Ogros:}
+    \begin{itemize}
+        \item Atributos: Alta vida, baja velocidad implementada en su clase derivada.
+        \item Resistencias: Resistentes a flechas (arqueros), débiles contra magia y artillería.
+        \item Representación visual: Modelos 2D distintivos de gran tamaño.
+    \end{itemize}
+    \item \textbf{Elfos Oscuros:}
+    \begin{itemize}
+        \item Atributos: Vida media/baja, muy alta velocidad de movimiento.
+        \item Resistencias: Resistentes a la magia, débiles contra flechas y artillería.
+        \item Representación visual: Figuras ágiles y delgadas con detalles élficos oscuros.
+    \end{itemize}
+    \item \textbf{Harpías:}
+    \begin{itemize}
+        \item Atributos: Vida media, velocidad intermedia. Solo pueden ser atacadas por torres de magos y arqueros.
+        \item Resistencias: Equilibradas para los tipos de ataque que pueden afectarlas.
+        \item Representación visual: Criaturas aladas que visualmente sugieren su inmunidad a ataques terrestres.
+    \end{itemize}
+    \item \textbf{Mercenarios:}
+    \begin{itemize}
+        \item Atributos: Vida media/alta, velocidad media.
+        \item Resistencias: Débiles a la magia, resistentes a flechas y artillería.
+        \item Representación visual: Guerreros con armadura que transmiten su resistencia a ataques físicos.
+    \end{itemize}
+\end{itemize}
+
+Cada enemigo posee atributos base que son afectados por el algoritmo genético:
+\begin{itemize}
+    \item Vida: Implementada como puntos de salud que disminuyen al recibir daño.
+    \item Velocidad: Determina la rapidez de movimiento a través del mapa.
+    \item Resistencias específicas: Implementadas como multiplicadores que reducen el daño recibido de diferentes tipos de ataque.
+\end{itemize}
+
+El sistema gestiona la aparición de enemigos en oleadas a través de un generador que utiliza los resultados del algoritmo genético para definir los atributos de cada nueva generación.
+
+\subsection{Requerimiento 007: Algoritmo Genético para la Evolución de Enemigos}
+El algoritmo genético para la evolución de enemigos se implementó con los siguientes componentes:
+
+\begin{itemize}
+    \item \textbf{Población Inicial:} La primera oleada de enemigos se genera con atributos base predefinidos o ligeramente aleatorios.
+    \item \textbf{Función de Fitness:} Se implementó una función que evalúa el desempeño de cada enemigo basándose en:
+    \begin{itemize}
+        \item Distancia recorrida hacia el puente (mayor distancia = mayor fitness).
+        \item Si alcanzó el puente (máximo fitness).
+        \item Tiempo de supervivencia (más tiempo = mayor fitness).
+    \end{itemize}
+    \item \textbf{Selección:} Se utiliza un sistema de selección por ruleta donde los individuos con mayor fitness tienen más probabilidad de ser seleccionados como padres. Este método está implementado en la clase de gestión genética.
+    \item \textbf{Cruce (Crossover):} Se implementó un cruce de un punto, donde se selecciona una posición aleatoria en la representación binaria de los atributos y se intercambian los segmentos entre progenitores.
+    \item \textbf{Mutación:} Con una probabilidad configurable (inicialmente establecida en 10%), ciertos atributos pueden sufrir pequeñas modificaciones aleatorias, introduciendo diversidad en la población.
+    \item \textbf{Nueva Generación:} La descendencia generada por el algoritmo constituye la siguiente oleada de enemigos, con atributos mejorados que dificultan progresivamente el juego.
+\end{itemize}
+
+El panel de estadísticas muestra información sobre el fitness promedio de cada generación y el número de mutaciones ocurridas, permitiendo al jugador comprender la evolución de los enemigos.
+
+\subsection{Requerimiento 008: Pathfinding A*}
+El algoritmo A* se implementó para que los enemigos encuentren el camino óptimo hacia el puente:
+
+\begin{itemize}
+    \item \textbf{Implementación de A*:} El algoritmo opera sobre la cuadrícula del mapa, donde cada celda es un nodo del grafo de búsqueda. Se implementaron las listas abierta y cerrada para la exploración del espacio.
+    \item \textbf{Costo de Movimiento (g):} Se estableció un costo de 1 para movimientos horizontales/verticales y $\sqrt{2}$ para diagonales. Las celdas ocupadas por torres tienen costo infinito, lo que las hace intransitables.
+    \item \textbf{Heurística (h):} Se implementó la distancia Euclidiana como heurística admisible, proporcionando una estimación precisa del costo restante hasta el objetivo.
+    \item \textbf{Función de Evaluación (f):} Implementada como $f(n) = g(n) + h(n)$, determina el orden de exploración de nodos, expandiendo primero aquellos con menor valor de $f$.
+    \item \textbf{Actualización de Caminos:} Los enemigos recalculan su ruta cuando ocurren cambios significativos en el entorno, como la construcción de nuevas torres que bloquean su camino actual.
+\end{itemize}
+
+El sistema de pathfinding permite a los enemigos navegar inteligentemente por el mapa, esquivando obstáculos y encontrando rutas alternativas cuando es necesario, lo que aumenta el desafío estratégico para el jugador.
+
+\subsection{Requerimiento 009: Panel de Estadísticas}
+Se implementó un panel de estadísticas completo que muestra:
+
+\begin{itemize}
+    \item \textbf{Generaciones transcurridas:} Un contador que indica el número de la oleada actual, correspondiente a la generación del algoritmo genético.
+    \item \textbf{Enemigos muertos en cada oleada:} Un registro detallado que muestra cuántos enemigos han sido eliminados en la oleada actual, con un historial accesible de oleadas anteriores.
+    \item \textbf{Fitness de cada individuo:} Durante y después de las oleadas, se muestra el fitness calculado para los enemigos, permitiendo observar la evolución de la población.
+    \item \textbf{Nivel de cada torre:} Al seleccionar una torre, se muestra su nivel actual y estadísticas detalladas como daño, alcance y velocidad de ataque.
+    \item \textbf{Probabilidad de mutaciones y cantidad:} Se visualiza la tasa de mutación configurada y un contador que indica cuántas mutaciones han ocurrido en la última generación.
+    \item \textbf{Oro disponible:} Implementado en Economy::Draw(), muestra constantemente los recursos disponibles para el jugador.
+\end{itemize}
+
+Toda esta información se presenta en una interfaz gráfica intuitiva desarrollada con GDI+, proporcionando al jugador los datos necesarios para tomar decisiones estratégicas mientras disfruta de una experiencia visual atractiva.
+
+\section{Diagrama UML}
+En la siguiente pagina se encuentra el diagrama UML con las respectivas clases, atributos y métodos del proyecto donde la flecha con rombo relleno significa una relación de composición, el triangulo vacío significa una relación de herencia y por ultimo la flecha sin triangulo completo establece una relación de asociación. 
+
+
+\newpage
+\newpage
+\begin{figure*}%[b!]  %% Add a [b!] if you prefer the wide image to be at the bottm of the page
+\centering
+\includegraphics[width=18.5cm, height=19cm]{example-image.jpeg}
+\caption{Diagrama UML del proyecto}\label{fig:example:wide}
+\end{figure*}
+
+
+
+\end{document}
