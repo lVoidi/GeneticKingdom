@@ -179,8 +179,17 @@ bool Projectile::LoadImage()
     case ProjectileType::CANNONBALL:
         fileName = L"Bomb.png"; // Bomba para torre Gunner
         break;
+    case ProjectileType::FIREARROW:
+        fileName = L"FireArrow.png";
+        break;
+    case ProjectileType::PURPLEFIREBALL:
+        fileName = L"PurpleFireball.png";
+        break;
+    case ProjectileType::NUKEBOMB:
+        fileName = L"NukeBomb.png";
+        break;
     default:
-        fileName = L"Arrow.png";
+        fileName = L"Arrow.png"; // Fallback por si acaso
     }
     
     // Lista de posibles rutas para la imagen

@@ -2,6 +2,9 @@
 #include "Tower.h"
 #include <cmath>
 #include "Map.h" // Para incluir la definición completa de DummyTarget
+#include <random> // Para std::mt19937 y std::uniform_int_distribution
+#include <cstdlib> // Para rand() y srand()
+#include <ctime>   // Para time() para la semilla de srand()
 
 // Constructor de la torre
 Tower::Tower(TowerType type, int row, int col)
@@ -10,6 +13,12 @@ Tower::Tower(TowerType type, int row, int col)
 {
     // Cargar la imagen correspondiente al tipo y nivel
     LoadImage();
+    // Inicializar la semilla para el generador de números aleatorios una vez por torre
+    // o mejor aún, hacerlo globalmente una sola vez en la aplicación.
+    // Por simplicidad aquí, si se quiere más aleatoriedad, mover a una inicialización global.
+    // srand(static_cast<unsigned int>(time(NULL))); 
+    // ^^^ Nota: Poner srand() aquí haría que todas las torres creadas en el mismo segundo
+    // tuvieran la misma secuencia. Es mejor hacerlo globalmente o usar <random>.
 }
 
 // Destructor
@@ -323,16 +332,39 @@ void Tower::DrawRange(HDC hdc, int cellSize)
 // Obtiene el tipo de proyectil para esta torre
 ProjectileType Tower::GetProjectileType() const
 {
+    // Determinar el tipo de proyectil base
+    ProjectileType baseProjectileType;
     switch (type) {
     case TowerType::ARCHER:
-        return ProjectileType::ARROW;
+        baseProjectileType = ProjectileType::ARROW;
+        break;
     case TowerType::MAGE:
-        return ProjectileType::FIREBALL;
+        baseProjectileType = ProjectileType::FIREBALL;
+        break;
     case TowerType::GUNNER:
-        return ProjectileType::CANNONBALL;
+        baseProjectileType = ProjectileType::CANNONBALL;
+        break;
     default:
-        return ProjectileType::ARROW;
+        baseProjectileType = ProjectileType::ARROW; // Default
+        break;
     }
+
+    // Decidir si es un ataque poderoso (20% de probabilidad)
+    // std::rand() devuelve un valor entre 0 y RAND_MAX
+    if ((std::rand() % 100) < 20) { // 20% de probabilidad
+        switch (type) {
+        case TowerType::ARCHER:
+            return ProjectileType::FIREARROW;
+        case TowerType::MAGE:
+            return ProjectileType::PURPLEFIREBALL;
+        case TowerType::GUNNER:
+            return ProjectileType::NUKEBOMB;
+        default:
+            return baseProjectileType; // En caso de un tipo de torre no manejado para poderosos
+        }
+    }
+    
+    return baseProjectileType;
 }
 
 // Actualiza la lógica de la torre e intenta disparar si es posible (hacia la dirección por defecto)

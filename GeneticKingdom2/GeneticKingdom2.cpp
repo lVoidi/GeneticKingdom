@@ -66,6 +66,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
+    // Inicializar la semilla para números aleatorios
+    srand(static_cast<unsigned int>(time(NULL)));
+
     // Crear el pincel de color verde para el fondo (#0e813c)
     g_hBackgroundBrush = CreateSolidBrush(RGB(14, 129, 60)); // RGB valores para #0e813c
 

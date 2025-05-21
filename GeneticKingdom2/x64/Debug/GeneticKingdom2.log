@@ -1,2 +1,7 @@
-﻿  GeneticKingdom2.cpp
+﻿  Tower.cpp
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Tower.cpp(303,22): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Tower.cpp(315,26): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Tower.cpp(316,26): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Tower.cpp(429,22): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Tower.cpp(430,22): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
   GeneticKingdom2.vcxproj -> C:\Users\roarb\GeneticKingdom\x64\Debug\GeneticKingdom2.exe

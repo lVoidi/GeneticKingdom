@@ -14,7 +14,10 @@ struct DummyTarget;
 enum class ProjectileType {
     ARROW,      // Flecha normal para torre Archer
     FIREBALL,   // Bola de fuego para torre Mage
-    CANNONBALL  // Bala de cañón para torre Gunner
+    CANNONBALL, // Bala de cañón para torre Gunner
+    FIREARROW,  // Flecha de fuego (poderosa) para torre Archer
+    PURPLEFIREBALL, // Bola de fuego púrpura (poderosa) para torre Mage
+    NUKEBOMB    // Bomba nuclear (poderosa) para torre Gunner
 };
 
 // Clase para manejar un proyectil individual
