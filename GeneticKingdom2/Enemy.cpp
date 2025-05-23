@@ -302,6 +302,16 @@ double Enemy::GetFitness() const {
     return fitness;
 }
 
+// I had to make my own functions because there are some 
+// ambiguities in the std library. Fuck windows headers.
+float getMaxFrom(float a, float b) {
+    return a > b ? a : b;
+}
+
+float getMinFrom(float a, float b) {
+    return a < b ? a : b;
+}
+
 void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float mapWidth, float mapHeight, float timeSurvived, bool reachedBridge) {
     float maxPossibleDistance = std::sqrt(mapWidth * mapWidth + mapHeight * mapHeight); 
     float currentDistanceToBridgeX = static_cast<float>(bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f) - x;
@@ -311,7 +321,7 @@ void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float ma
     double distanceScore = 0.0;
     if (maxPossibleDistance > 0) {
         distanceScore = 1.0 - (remainingDistance / maxPossibleDistance);
-        distanceScore = std::max(0.0, std::min(1.0, distanceScore)); 
+        distanceScore = getMaxFrom(0.0, getMinFrom(1.0, distanceScore)); 
     }
 
     double bridgeBonus = reachedBridge ? 100.0 : 0.0;
@@ -331,13 +341,13 @@ void Enemy::Mutate(float mutationRate) {
 
     if (dis(gen) < mutationRate) {
         std::uniform_int_distribution<> health_change(-maxHealth / 10, maxHealth / 10);
-        int newMaxHealth = std::max(10, maxHealth + health_change(gen)); 
+        int newMaxHealth = getMaxFrom(10, maxHealth + health_change(gen)); 
         SetMaxHealth(newMaxHealth);
     }
 
     if (dis(gen) < mutationRate) {
         std::uniform_real_distribution<> speed_change_factor(0.9f, 1.1f);
-        float newSpeed = std::max(5.0f, speed * speed_change_factor(gen)); 
+        float newSpeed = getMaxFrom(5.0f, speed * speed_change_factor(gen)); 
         SetSpeed(newSpeed);
     }
 }
