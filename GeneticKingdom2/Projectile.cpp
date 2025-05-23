@@ -1,160 +1,125 @@
+#define _USE_MATH_DEFINES // For M_PI
 #include "framework.h"
 #include "Projectile.h"
+#include "Enemy.h" // Required for Enemy class details
+#include "Economy.h" // Required for Economy class
 #include <cmath>
 #include "Map.h" // Para incluir la definición completa de DummyTarget
 
-// Constructor de Projectile
-Projectile::Projectile(ProjectileType type, int startRow, int startCol, int targetRow, int targetCol, int cellSize)
-    : type(type), finished(false), pImage(NULL), cellSize(cellSize)
+const float PROJECTILE_SIZE_RADIUS = 5.0f; // Example radius for collision
+const float ENEMY_SIZE_RADIUS = CELL_SIZE / 4.0f; // Example, should match enemy drawing/size
+
+// Constructor del proyectil
+Projectile::Projectile(ProjectileType type, int startRow, int startCol, int targetCellRow, int targetCellCol, int cs, float actualTargetX, float actualTargetY)
+    : type(type), pImage(NULL), cellSize(cs), isActive(true), hasPreciseTarget(false), initialTargetX(0), initialTargetY(0)
 {
-    // Convertir coordenadas de celda a píxeles (centro de la celda)
+    // Posición inicial (centro de la celda)
     x = (startCol + 0.5f) * cellSize;
     y = (startRow + 0.5f) * cellSize;
-    targetX = (targetCol + 0.5f) * cellSize;
-    targetY = (targetRow + 0.5f) * cellSize;
-    
-    // Calcular ángulo del proyectil
+
+    if (actualTargetX != -1.0f && actualTargetY != -1.0f) {
+        targetX = actualTargetX;
+        targetY = actualTargetY;
+        hasPreciseTarget = true;
+    } else {
+        targetX = (targetCellCol + 0.5f) * cellSize;
+        targetY = (targetCellRow + 0.5f) * cellSize;
+        hasPreciseTarget = false;
+    }
+
+    // Calcular ángulo y velocidad
     float dx = targetX - x;
     float dy = targetY - y;
-    angle = atan2f(dy, dx);
-    
-    // Establecer velocidad según el tipo de proyectil
+    angle = atan2(dy, dx);
+
     switch (type) {
     case ProjectileType::ARROW:
-        speed = 300.0f;  // Flechas rápidas
+    case ProjectileType::FIREARROW:
+        speed = 300.0f; // Píxeles por segundo
         break;
     case ProjectileType::FIREBALL:
-        speed = 200.0f;  // Bolas de fuego a velocidad media
+    case ProjectileType::PURPLEFIREBALL:
+        speed = 200.0f;
         break;
     case ProjectileType::CANNONBALL:
-        speed = 150.0f;  // Balas de cañón lentas pero potentes
+    case ProjectileType::NUKEBOMB:
+        speed = 150.0f;
         break;
     default:
-        speed = 250.0f;
+        speed = 200.0f;
     }
-    
-    // Cargar la imagen correspondiente
     LoadImage();
 }
 
 // Destructor
 Projectile::~Projectile()
 {
-    // No eliminamos la imagen, ya que GDI+ se encargará de eso
-    pImage = NULL;
+    if (pImage) {
+        // GDI+ handles image cleanup with GdiplusShutdown
+        pImage = NULL;
+    }
 }
 
 // Dibuja el proyectil
 void Projectile::Draw(HDC hdc)
 {
-    if (pImage && pImage->GetLastStatus() == Gdiplus::Ok) {
-        try {
-            Gdiplus::Graphics graphics(hdc);
-            
-            // Configurar calidad de dibujo
-            graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
-            graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-            
-            // Calcular rectángulo de destino (centrado en la posición actual)
-            int imgWidth = cellSize * 0.6f;  // 60% del tamaño de celda - más grande que antes
-            int imgHeight = cellSize * 0.6f; // Mantenemos proporciones cuadradas
-            
-            // Crear una transformación para rotar el objeto
-            Gdiplus::Matrix matrix;
-            
-            // Método correcto de rotación alrededor de un punto
-            matrix.RotateAt(
-                angle * 180.0f / 3.14159f, // Convertir radianes a grados
-                Gdiplus::PointF(x, y)      // Punto de rotación (centro del proyectil)
-            );
-            
-            graphics.SetTransform(&matrix);
-            
-            // Dibujar la imagen con más tamaño
-            Gdiplus::Rect destRect(
-                static_cast<int>(x - imgWidth / 2),
-                static_cast<int>(y - imgHeight / 2),
-                imgWidth,
-                imgHeight
-            );
-            
-            // Dibujar la imagen
-            graphics.DrawImage(
-                pImage,
-                destRect,
-                0, 0, pImage->GetWidth(), pImage->GetHeight(),
-                Gdiplus::UnitPixel
-            );
-            
-            // Restaurar la transformación original
-            graphics.ResetTransform();
-            
-            // Opcional: Dibujar un punto para depuración en el centro del proyectil
-            Gdiplus::SolidBrush debugBrush(Gdiplus::Color(255, 255, 0, 0)); // Rojo opaco
-            graphics.FillEllipse(&debugBrush, (Gdiplus::REAL)(x - 3), (Gdiplus::REAL)(y - 3), (Gdiplus::REAL)6, (Gdiplus::REAL)6);
-        }
-        catch (...) {
-            OutputDebugStringW(L"Error al dibujar el proyectil\n");
-        }
-    } else {
-        // Si no se cargó la imagen correctamente, dibujar un círculo de color como alternativa
-        Gdiplus::Graphics graphics(hdc);
-        Gdiplus::Color color;
-        
-        switch (type) {
-        case ProjectileType::ARROW:
-            color = Gdiplus::Color(255, 200, 200, 0); // Amarillo
-            break;
-        case ProjectileType::FIREBALL:
-            color = Gdiplus::Color(255, 255, 100, 0); // Naranja
-            break;
-        case ProjectileType::CANNONBALL:
-            color = Gdiplus::Color(255, 50, 50, 50);  // Gris oscuro
-            break;
-        default:
-            color = Gdiplus::Color(255, 255, 255, 255); // Blanco
-        }
-        
-        Gdiplus::SolidBrush brush(color);
-        float radius = cellSize * 0.2f; // 20% del tamaño de celda
-        graphics.FillEllipse(&brush, (Gdiplus::REAL)(x - radius), (Gdiplus::REAL)(y - radius), (Gdiplus::REAL)(radius * 2), (Gdiplus::REAL)(radius * 2));
-    }
+    if (!isActive || !pImage || pImage->GetLastStatus() != Gdiplus::Ok) return;
+
+    Gdiplus::Graphics graphics(hdc);
+    graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+
+    // Rotar la imagen para que apunte en la dirección del movimiento
+    // El centro de rotación es el centro de la imagen
+    // GDI+ rota alrededor de la esquina superior izquierda, así que transladamos, rotamos, transladamos de vuelta
+    float imgWidth = static_cast<float>(pImage->GetWidth());
+    float imgHeight = static_cast<float>(pImage->GetHeight());
+    
+    Gdiplus::Matrix matrix;
+    matrix.Translate(x, y); // Mover al punto de anclaje (posición del proyectil)
+    matrix.Rotate(angle * (180.0f / static_cast<float>(M_PI))); // Rotar
+    matrix.Translate(-imgWidth / 2.0f, -imgHeight / 2.0f); // Ajustar para centrar la imagen en (x,y)
+    graphics.SetTransform(&matrix);
+
+    graphics.DrawImage(pImage, 0.0f, 0.0f, imgWidth, imgHeight);
+    
+    graphics.ResetTransform(); // Restaurar la transformación
 }
 
 // Actualiza la posición del proyectil
 bool Projectile::Update(float deltaTime)
 {
-    if (finished) {
-        return false;
-    }
-    
-    // Calcular desplazamiento en este frame
-    float distance = speed * deltaTime;
-    float dx = cosf(angle) * distance;
-    float dy = sinf(angle) * distance;
-    
-    // Actualizar posición
-    x += dx;
-    y += dy;
-    
-    // Comprobar si ha llegado al objetivo (distancia cuadrática)
-    float remainingDx = targetX - x;
-    float remainingDy = targetY - y;
-    float squaredDistance = remainingDx * remainingDx + remainingDy * remainingDy;
-    
-    // Si está cerca del objetivo (menos de 5 píxeles), marcar como terminado
-    if (squaredDistance < 25.0f) {
-        finished = true;
-        return false;
-    }
-    
-    return true;
-}
+    if (!isActive) return false; // No actualizar si no está activo
 
-// Comprueba si el proyectil ha llegado a su destino
-bool Projectile::IsFinished() const
-{
-    return finished;
+    float moveX = speed * cos(angle) * deltaTime;
+    float moveY = speed * sin(angle) * deltaTime;
+
+    x += moveX;
+    y += moveY;
+
+    // Comprobar si ha llegado al objetivo (o lo ha pasado)
+    // Esto es simplificado. Para objetivos que se mueven, se necesitaría recalcular el ángulo
+    // o usar una lógica de homing, o simplemente un tiempo de vida / distancia máxima.
+    float distToInitialTargetSq = (x - initialTargetX) * (x - initialTargetX) + (y - initialTargetY) * (y - initialTargetY);
+    float travelDistSq = (moveX * moveX + moveY * moveY); // squared distance moved in this frame
+
+    // Si el proyectil ha pasado el punto donde estaba el target inicialmente
+    // O si vuela demasiado lejos (ej. 2000 pixels de su origen - un rango máximo)
+    float dx_origin = x - ((static_cast<int>(x/cellSize) +0.5f)*cellSize); // this logic is not right for origin
+    // Simpler: check distance from where it was fired initially, or just if it passed target
+    // For non-homing, if it has moved roughly the initial distance to target.
+    float initialDx = initialTargetX - ( (int)(x/cellSize - moveX/cellSize) * cellSize + cellSize/2.0f); // Approximation of start x
+    float initialDy = initialTargetY - ( (int)(y/cellSize - moveY/cellSize) * cellSize + cellSize/2.0f);
+    // This check is problematic. A better way: fixed lifetime or max range from tower.
+    // For now, let's say if it gets very close to where the target cell was.
+    float distToTargetCellSq = (x - targetX)*(x-targetX) + (y-targetY)*(y-targetY);
+    if (distToTargetCellSq < (cellSize * cellSize / 4.0f)) { // Reached vicinity of target cell
+        isActive = false;
+    }
+    // Add a max range or lifetime if necessary, e.g.:
+    // if (sqrt( (x-startX_at_spawn)*(x-startX_at_spawn) + (y-startY_at_spawn)*(y-startY_at_spawn) ) > MAX_PROJECTILE_RANGE ) isActive = false;
+
+    return isActive;
 }
 
 // Obtiene el tipo de proyectil
@@ -166,86 +131,44 @@ ProjectileType Projectile::GetType() const
 // Carga la imagen adecuada para el tipo de proyectil
 bool Projectile::LoadImage()
 {
-    // Determinar el nombre de archivo según el tipo
+    pImage = NULL; // GDI+ will manage freeing existing if any on new FromFile, but good to clear pointer
     std::wstring fileName;
-    
     switch (type) {
-    case ProjectileType::ARROW:
-        fileName = L"Arrow.png";
-        break;
-    case ProjectileType::FIREBALL:
-        fileName = L"Fireball.png"; // Bola de fuego para torre Mage
-        break;
-    case ProjectileType::CANNONBALL:
-        fileName = L"Bomb.png"; // Bomba para torre Gunner
-        break;
-    case ProjectileType::FIREARROW:
-        fileName = L"FireArrow.png";
-        break;
-    case ProjectileType::PURPLEFIREBALL:
-        fileName = L"PurpleFireball.png";
-        break;
-    case ProjectileType::NUKEBOMB:
-        fileName = L"NukeBomb.png";
-        break;
-    default:
-        fileName = L"Arrow.png"; // Fallback por si acaso
+    case ProjectileType::ARROW: fileName = L"Arrow.png"; break;
+    case ProjectileType::FIREBALL: fileName = L"Fireball.png"; break;
+    case ProjectileType::CANNONBALL: fileName = L"Cannonball.png"; break;
+    case ProjectileType::FIREARROW: fileName = L"FireArrow.png"; break; // Needs this asset
+    case ProjectileType::PURPLEFIREBALL: fileName = L"PurpleFireball.png"; break; // Needs this asset
+    case ProjectileType::NUKEBOMB: fileName = L"NukeBomb.png"; break; // Needs this asset
+    default: return false;
     }
-    
-    // Lista de posibles rutas para la imagen
-    const wchar_t* possiblePaths[] = {
-        L"Assets\\Projectiles\\",
-        L"..\\GeneticKingdom2\\Assets\\Projectiles\\",
-        L"GeneticKingdom2\\Assets\\Projectiles\\",
-        L"C:\\Users\\Admin\\source\\repos\\GeneticKingdom2\\GeneticKingdom2\\Assets\\Projectiles\\"
-    };
-    
-    // Intentar cargar desde una de las rutas posibles
+
+    const wchar_t* possiblePaths[] = { L"Assets\\Projectiles\\", L"..\\GeneticKingdom2\\Assets\\Projectiles\\", L"GeneticKingdom2\\Assets\\Projectiles\\" };
     for (const wchar_t* basePath : possiblePaths) {
         std::wstring fullPath = basePath + fileName;
         Gdiplus::Image* tempImage = Gdiplus::Image::FromFile(fullPath.c_str());
-        
         if (tempImage && tempImage->GetLastStatus() == Gdiplus::Ok) {
             pImage = tempImage;
-            WCHAR debugMsg[256];
-            swprintf_s(debugMsg, L"Imagen de proyectil cargada correctamente: %s\n", fullPath.c_str());
-            OutputDebugStringW(debugMsg);
             return true;
         }
-        else if (tempImage) {
-            tempImage = NULL;
-        }
+        if (tempImage) delete tempImage; // Clean up if loaded but status not OK
     }
-    
-    // Si no se pudo cargar, intentar con la ruta del ejecutable
+    // Try from exe path
     WCHAR exePath[MAX_PATH];
     GetModuleFileNameW(NULL, exePath, MAX_PATH);
-    
     WCHAR* lastSlash = wcsrchr(exePath, L'\\');
     if (lastSlash != NULL) {
         *(lastSlash + 1) = L'\0';
-        
         std::wstring fullPath = exePath;
         fullPath += L"Assets\\Projectiles\\";
         fullPath += fileName;
-        
         Gdiplus::Image* tempImage = Gdiplus::Image::FromFile(fullPath.c_str());
-        
         if (tempImage && tempImage->GetLastStatus() == Gdiplus::Ok) {
             pImage = tempImage;
-            WCHAR debugMsg[256];
-            swprintf_s(debugMsg, L"Imagen de proyectil cargada correctamente: %s\n", fullPath.c_str());
-            OutputDebugStringW(debugMsg);
             return true;
         }
-        else if (tempImage) {
-            tempImage = NULL;
-        }
+        if (tempImage) delete tempImage;
     }
-    
-    WCHAR errorMsg[256];
-    swprintf_s(errorMsg, L"Error al cargar la imagen del proyectil: %s\n", fileName.c_str());
-    OutputDebugStringW(errorMsg);
     return false;
 }
 
@@ -264,32 +187,33 @@ ProjectileManager::~ProjectileManager()
 }
 
 // Añade un nuevo proyectil
-void ProjectileManager::AddProjectile(ProjectileType type, int startRow, int startCol, int targetRow, int targetCol, int cellSize)
+void ProjectileManager::AddProjectile(ProjectileType type, int startRow, int startCol, int targetRow, int targetCol, int cellSize, float targetActualX, float targetActualY)
 {
     WCHAR debugMsg[256];
     swprintf_s(debugMsg, L"Creando proyectil tipo %d desde [%d,%d] hacia [%d,%d]\n", 
               static_cast<int>(type), startRow, startCol, targetRow, targetCol);
     OutputDebugStringW(debugMsg);
     
-    Projectile* newProjectile = new Projectile(type, startRow, startCol, targetRow, targetCol, cellSize);
-    projectiles.push_back(newProjectile);
+    projectiles.push_back(new Projectile(type, startRow, startCol, targetRow, targetCol, cellSize, targetActualX, targetActualY));
 }
 
 // Dibuja todos los proyectiles
 void ProjectileManager::DrawProjectiles(HDC hdc)
 {
     for (auto& projectile : projectiles) {
-        projectile->Draw(hdc);
+        if (projectile->IsActive()) {
+            projectile->Draw(hdc);
+        }
     }
 }
 
 // Actualiza todos los proyectiles
 void ProjectileManager::Update(float deltaTime)
 {
-    // Usar un enfoque seguro para eliminar proyectiles completados
     auto it = projectiles.begin();
     while (it != projectiles.end()) {
-        if ((*it)->Update(deltaTime) == false || (*it)->IsFinished()) {
+        (*it)->Update(deltaTime); // Call update first
+        if (!(*it)->IsActive()) { // Then check if it became inactive
             delete *it;
             it = projectiles.erase(it);
         } else {
@@ -304,53 +228,66 @@ void Projectile::GetPosition(float& outX, float& outY) const
     outX = x;
     outY = y;
 }
-
+/*
 // Verifica si el proyectil colisiona con un objetivo dummy
 bool Projectile::CheckCollision(const DummyTarget& target, int cellSize) const
 {
-    // Obtener el centro del objetivo
+    if (!isActive) return false;
     float targetCenterX = (target.col + 0.5f) * cellSize;
     float targetCenterY = (target.row + 0.5f) * cellSize;
+    float distSq = (x - targetCenterX) * (x - targetCenterX) + (y - targetCenterY) * (y - targetCenterY);
+    float combinedRadius = PROJECTILE_SIZE_RADIUS + (static_cast<float>(cellSize) / 2.0f * 0.6f); 
+    return distSq <= (combinedRadius * combinedRadius);
+}
+*/
+
+// Ensure this definition is pristine and correctly scoped
+bool Projectile::CheckCollision(const Enemy& enemy, int cs) const 
+{
+    // Accessing member variables directly (this-> is implicit)
+    if (!isActive || !enemy.IsActive() || !enemy.IsAlive()) {
+        return false;
+    }
+    float enemyX = enemy.GetX();
+    float enemyY = enemy.GetY();
+    float distSq = (x - enemyX) * (x - enemyX) + (y - enemyY) * (y - enemyY);
     
-    // Calcular distancia entre el proyectil y el objetivo
-    float dx = x - targetCenterX;
-    float dy = y - targetCenterY;
-    float distance = sqrtf(dx * dx + dy * dy);
-    
-    // Radio de colisión del objetivo (30% del tamaño de celda)
-    float targetRadius = cellSize * 0.3f;
-    
-    // Radio de colisión del proyectil (más pequeño para mayor precisión)
-    float projectileRadius = cellSize * 0.15f;
-    
-    // Hay colisión si la distancia es menor que la suma de los radios
-    return distance < (targetRadius + projectileRadius);
+    float currentEnemyRadius = static_cast<float>(cs) / 4.0f; 
+    float combinedRadius = PROJECTILE_SIZE_RADIUS + currentEnemyRadius; 
+    return distSq <= (combinedRadius * combinedRadius);
 }
 
-// Marca el proyectil como finalizado
-void Projectile::SetFinished()
-{
-    finished = true;
+bool Projectile::IsActive() const { return isActive; }
+void Projectile::SetActive(bool active) { isActive = active; }
+
+int Projectile::GetDamage() const {
+    switch (type) {
+        case ProjectileType::ARROW: return 10;
+        case ProjectileType::FIREBALL: return 20;
+        case ProjectileType::CANNONBALL: return 35;
+        case ProjectileType::FIREARROW: return 15; // Example: stronger arrow
+        case ProjectileType::PURPLEFIREBALL: return 30; // Example: stronger fireball
+        case ProjectileType::NUKEBOMB: return 100; // Example: very high damage
+        default: return 5;
+    }
 }
 
-// Comprueba colisiones con los objetivos dummy y devuelve los índices impactados
-std::vector<size_t> ProjectileManager::CheckCollisions(const std::vector<DummyTarget>& targets, int cellSize)
-{
-    std::vector<size_t> hitTargets;
-    
-    // Para cada proyectil
-    for (auto& projectile : projectiles) {
-        // Para cada objetivo
-        for (size_t i = 0; i < targets.size(); ++i) {
-            // Si hay colisión, añadir el índice del objetivo a la lista
-            if (projectile->CheckCollision(targets[i], cellSize)) {
-                hitTargets.push_back(i);
-                // Marcar el proyectil como terminado
-                projectile->SetFinished();
-                break; // Un proyectil solo puede impactar un objetivo
+void ProjectileManager::CheckCollisions(std::vector<Enemy>& enemies, int cs, Economy& economy) {
+    for (size_t i = 0; i < projectiles.size(); ++i) {
+        if (!projectiles[i]->IsActive()) continue;
+
+        for (Enemy& enemy : enemies) {
+            if (!enemy.IsActive() || !enemy.IsAlive()) continue;
+
+            if (projectiles[i]->CheckCollision(enemy, cs)) {
+                enemy.TakeDamage(projectiles[i]->GetDamage(), projectiles[i]->GetType());
+                projectiles[i]->SetActive(false);
+
+                if (!enemy.IsAlive()) {
+                    economy.AddGold(enemy.GetGoldReward());
+                }
+                break;
             }
         }
     }
-    
-    return hitTargets;
 } 

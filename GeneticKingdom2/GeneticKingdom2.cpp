@@ -4,6 +4,8 @@
 #include "framework.h"
 #include "GeneticKingdom2.h"
 #include "Map.h"
+#include "Enemy.h"
+#include "GeneticAlgorithm.h"
 #include <windowsx.h> // Para GET_X_LPARAM, GET_Y_LPARAM
 #include <wingdi.h>   // Para funciones de GDI
 #include <objidl.h>   // Necesario para GDI+
@@ -16,6 +18,11 @@ using namespace Gdiplus;
 #define MAX_LOADSTRING 100
 #define TIMER_ID 1
 #define FPS 30 // Reducido de 60 a 30 fotogramas por segundo para una mejor interacción con los menús
+
+// GA Configuration Constants
+const int POPULATION_SIZE = 20;     // Example: Number of enemies per wave
+const float MUTATION_RATE = 0.1f;   // Example: 10% chance of mutation
+const float CROSSOVER_RATE = 0.7f;  // Example: 70% chance of crossover
 
 // Variables globales:
 HINSTANCE hInst;                                // instancia actual
@@ -31,6 +38,10 @@ int g_selectedCol = -1;                         // Columna seleccionada para con
 DWORD g_lastUpdateTime = 0;                     // Último tiempo de actualización
 bool g_gamePaused = false;                      // Indica si el juego está pausado
 RECT g_menuRect = { 0 };                        // Rect del menú actual
+// Genetic Algorithm and Enemies
+GeneticAlgorithm* g_pGeneticAlgorithm = nullptr; // Pointer to allow deferred construction
+std::vector<Enemy> g_currentWaveEnemies;
+int g_currentWaveNumber = 0;
 
 // Declaraciones de funciones adelantadas incluidas en este módulo de código:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -104,6 +115,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
     // Liberar recursos
+    if (g_pGeneticAlgorithm) {
+        delete g_pGeneticAlgorithm;
+        g_pGeneticAlgorithm = nullptr;
+    }
     if (g_hBackgroundBrush) {
         DeleteObject(g_hBackgroundBrush);
         g_hBackgroundBrush = NULL;
@@ -159,16 +174,25 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-   hInst = hInstance; // Almacenar identificador de instancia en una variable global
+   hInst = hInstance; 
 
-   // Obtener dimensiones de la pantalla
    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-   // Inicializar el mapa con las dimensiones de la pantalla
    gameMap.Initialize(screenWidth, screenHeight);
 
-   // Crear ventana sin bordes ni decoraciones y asegurar que está en pantalla completa
+   // Initialize Genetic Algorithm
+   // Assuming GetEntryPoint() and GetBridgeGridLocation() are available in Map class
+   // For now, using common assumptions for entry point.
+   std::pair<int, int> entryPoint = { gameMap.GetNumRows() / 2, 0 }; 
+   std::pair<int, int> bridgeLocation = gameMap.GetBridgeGridLocation(); 
+   
+   if (g_pGeneticAlgorithm) delete g_pGeneticAlgorithm; // Should be null here, but good practice
+   g_pGeneticAlgorithm = new GeneticAlgorithm(POPULATION_SIZE, MUTATION_RATE, CROSSOVER_RATE, entryPoint, bridgeLocation, &gameMap);
+   g_pGeneticAlgorithm->InitializePopulation();
+   g_currentWaveEnemies = g_pGeneticAlgorithm->GetCurrentPopulation();
+   g_currentWaveNumber = 1;
+
    HWND hWnd = CreateWindowW(
        szWindowClass, 
        szTitle, 
@@ -267,6 +291,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // DIBUJAR EL MAPA Y TODOS SUS COMPONENTES EN EL BACK BUFFER
             gameMap.Draw(hdcMem); 
 
+            // Dibujar enemigos de la oleada actual
+            for (const Enemy& enemy : g_currentWaveEnemies) {
+                enemy.Draw(hdcMem);
+            }
+
             BitBlt(hdc, 0, 0, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, hdcMem, 0, 0, SRCCOPY);
 
             SelectObject(hdcMem, hbmOld);
@@ -361,6 +390,34 @@ void DrawConstructionInfo(HDC hdc, int row, int col) {
 
 // Actualiza el juego con el tiempo transcurrido
 void UpdateGame(float deltaTime) {
-    // Actualizar la lógica del mapa (torres, enemigos, etc.)
-    gameMap.Update(deltaTime);
+    // Actualizar la lógica del mapa (torres, proyectiles)
+    gameMap.Update(deltaTime, g_currentWaveEnemies); // Pass current wave to map update
+
+    // Actualizar enemigos
+    bool anyActiveEnemies = false;
+    for (Enemy& enemy : g_currentWaveEnemies) {
+        if (enemy.IsActive()) {
+            enemy.Update(deltaTime);
+            anyActiveEnemies = true;
+        }
+    }
+
+    // Wave end and GA logic
+    if (!anyActiveEnemies && g_pGeneticAlgorithm) { // Wave is over
+        // Ensure bridgeLocation is correctly fetched for fitness calculation
+        std::pair<int, int> bridgeGridLoc = gameMap.GetBridgeGridLocation();
+        float mapPixelWidth = gameMap.GetMapPixelWidth();
+        float mapPixelHeight = gameMap.GetMapPixelHeight();
+
+        for (Enemy& enemy : g_currentWaveEnemies) {
+            // Fitness is calculated using the enemy's own timeAlive and whether it reached the bridge
+            enemy.CalculateFitness(bridgeGridLoc, mapPixelWidth, mapPixelHeight, 
+                                   enemy.GetTimeAlive(), enemy.HasReachedBridge());
+        }
+
+        g_pGeneticAlgorithm->SetCurrentPopulation(g_currentWaveEnemies);
+        g_currentWaveEnemies = g_pGeneticAlgorithm->GenerateNewGeneration();
+        g_currentWaveNumber++;
+        // OutputDebugStringW(L"Generated new wave."); // Debug message
+    }
 }

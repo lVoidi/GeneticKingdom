@@ -1,6 +1,41 @@
 #include "framework.h"
 #include "Map.h"
+#include "Enemy.h" // Ensure full Enemy definition is available
 #include <wincodec.h> // Para cargar imágenes
+#include <vector>
+#include <queue>    // For std::priority_queue
+#include <cmath>    // For sqrt, fabs
+#include <algorithm> // For std::reverse
+#include <map> // For parent tracking or cost storage if not using 2D vector
+
+// Define M_SQRT2 if not available (e.g. MSVC)
+#ifndef M_SQRT2
+#define M_SQRT2 1.41421356237309504880f
+#endif
+
+namespace {
+    struct AStarNode {
+        int row, col;
+        float gCost; // Cost from start to this node
+        float hCost; // Heuristic cost from this node to end
+        float fCost; // gCost + hCost
+        std::pair<int, int> parent; // Parent's coordinates
+
+        AStarNode(int r, int c, float g, float h, std::pair<int, int> p = {-1, -1})
+            : row(r), col(c), gCost(g), hCost(h), fCost(g + h), parent(p) {}
+
+        // For priority queue: we want the smallest fCost
+        bool operator>(const AStarNode& other) const {
+            return fCost > other.fCost;
+        }
+    };
+
+    float CalculateHeuristic(int r1, int c1, int r2, int c2) {
+        float dr = static_cast<float>(r1 - r2);
+        float dc = static_cast<float>(c1 - c2);
+        return std::sqrt(dr * dr + dc * dc); // Euclidean distance
+    }
+}
 
 Map::Map() : numRows(0), numCols(0), entryRow(0), entryCol(0), gridPen(NULL), constructionSpotBrush(NULL),
             pConstructionImage(NULL), constructionState(ConstructionState::NONE), selectedRow(-1), selectedCol(-1),
@@ -281,6 +316,14 @@ int Map::GetNumCols() const {
 }
 
 int Map::GetNumRows() const {
+    return numRows;
+}
+
+int Map::GetGridWidth() const {
+    return numCols;
+}
+
+int Map::GetGridHeight() const {
     return numRows;
 }
 
@@ -672,54 +715,26 @@ void Map::DrawConstructionMenu(HDC hdc) {
 }
 
 // Actualiza la lógica del mapa
-void Map::Update(float deltaTime) {
-    // Mensaje de depuración
+void Map::Update(float deltaTime, std::vector<Enemy>& enemies) {
     WCHAR debugMsg[256];
-    swprintf_s(debugMsg, L"Map::Update - deltaTime: %.4f, Objetivos: %zd, Torres: %d\n", 
-              deltaTime, dummyTargets.size(), towerManager.GetTowerCount());
+    swprintf_s(debugMsg, L"Map::Update - deltaTime: %.4f, Enemies: %zu, Torres: %zu\n", 
+              deltaTime, enemies.size(), towerManager.GetTowerCount());
     OutputDebugStringW(debugMsg);
     
-    // Actualizar torres y hacer que apunten a objetivos dummy si existen
-    if (!dummyTargets.empty()) {
-        towerManager.Update(deltaTime, projectileManager, CELL_SIZE, dummyTargets);
-    } else {
-        towerManager.Update(deltaTime, projectileManager, CELL_SIZE);
-    }
+    // Actualizar torres y hacer que apunten a enemigos si existen
+    // Placeholder: towerManager.Update will need to take the enemies vector
+    towerManager.Update(deltaTime, projectileManager, CELL_SIZE, enemies); // Needs TowerManager to be updated
     
-    // Actualizar proyectiles
     projectileManager.Update(deltaTime);
     
-    // Mensaje de depuración sobre proyectiles
     swprintf_s(debugMsg, L"Proyectiles activos: %zd\n", 
               projectileManager.GetProjectiles().size());
     OutputDebugStringW(debugMsg);
     
-    // Comprobar colisiones entre proyectiles y objetivos dummy
-    if (!dummyTargets.empty()) {
-        // Obtener índices de objetivos impactados
-        std::vector<size_t> hitTargets = projectileManager.CheckCollisions(dummyTargets, CELL_SIZE);
-        
-        // Mensaje de depuración sobre colisiones
-        if (!hitTargets.empty()) {
-            swprintf_s(debugMsg, L"Colisiones detectadas: %zd\n", hitTargets.size());
-            OutputDebugStringW(debugMsg);
-        }
-        
-        // Eliminar objetivos impactados (desde el índice más alto al más bajo para evitar problemas)
-        std::sort(hitTargets.begin(), hitTargets.end(), std::greater<size_t>());
-        for (size_t index : hitTargets) {
-            if (index < dummyTargets.size()) {
-                swprintf_s(debugMsg, L"Eliminando objetivo dummy en posición %zd\n", index);
-                OutputDebugStringW(debugMsg);
-                dummyTargets.erase(dummyTargets.begin() + index);
-            }
-        }
-    }
+    projectileManager.CheckCollisions(enemies, CELL_SIZE, economy); 
     
-    // Actualizar objetivos dummy
     UpdateDummyTargets();
     
-    // Generar nuevos objetivos aleatoriamente (2% de probabilidad por frame)
     if (rand() % 100 < 2 && dummyTargets.size() < 5) {
         GenerateRandomTargets(1);
     }
@@ -865,4 +880,101 @@ void Map::GenerateRandomTargets(int count) {
             AddDummyTarget(row, col);
         }
     }
+}
+
+// Placeholder for A* pathfinding. Replace with your actual A* implementation.
+std::vector<std::pair<int, int>> Map::GetPath(std::pair<int, int> startCell, std::pair<int, int> endCell) const {
+    std::vector<std::pair<int, int>> path;
+    if (startCell == endCell) {
+        path.push_back(startCell);
+        return path;
+    }
+    if (startCell.first < 0 || startCell.first >= numRows || startCell.second < 0 || startCell.second >= numCols ||
+        endCell.first < 0 || endCell.first >= numRows || endCell.second < 0 || endCell.second >= numCols) {
+        return path; // Invalid start or end
+    }
+
+    std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> openList;
+    
+    // Using a 2D vector to store costs and visited status for quick access.
+    // Initialize with high values.
+    std::vector<std::vector<float>> gCosts(numRows, std::vector<float>(numCols, FLT_MAX));
+    // Store parent coordinates to reconstruct path
+    std::vector<std::vector<std::pair<int,int>>> parents(numRows, std::vector<std::pair<int,int>>(numCols, {-1,-1}));
+    // Closed list: true if cell has been processed
+    std::vector<std::vector<bool>> closedList(numRows, std::vector<bool>(numCols, false));
+
+    float startHCost = CalculateHeuristic(startCell.first, startCell.second, endCell.first, endCell.second);
+    openList.push(AStarNode(startCell.first, startCell.second, 0.0f, startHCost, {-1,-1}));
+    gCosts[startCell.first][startCell.second] = 0.0f;
+
+    // Possible moves (8 directions)
+    int dr[] = {-1, 1, 0, 0, -1, -1, 1, 1}; // Row changes
+    int dc[] = {0, 0, -1, 1, -1, 1, -1, 1}; // Col changes
+    float moveCost[] = {1.0f, 1.0f, 1.0f, 1.0f, M_SQRT2, M_SQRT2, M_SQRT2, M_SQRT2}; // Cost for each move
+
+    while(!openList.empty()) {
+        AStarNode currentNode = openList.top();
+        openList.pop();
+
+        int r = currentNode.row;
+        int c = currentNode.col;
+
+        if (closedList[r][c]) {
+            continue; // Already processed
+        }
+        closedList[r][c] = true;
+
+        if (r == endCell.first && c == endCell.second) { // Goal reached
+            std::pair<int,int> currentPathNode = endCell;
+            while(currentPathNode.first != -1) { // Backtrack using parents
+                path.push_back(currentPathNode);
+                if (currentPathNode == startCell) break;
+                currentPathNode = parents[currentPathNode.first][currentPathNode.second];
+                if (path.size() > numRows * numCols * 2) return {}; // Safety break for very long/cyclic paths
+            }
+            std::reverse(path.begin(), path.end());
+            return path;
+        }
+
+        for (int i = 0; i < 8; ++i) { // Check all 8 neighbors
+            int nextR = r + dr[i];
+            int nextC = c + dc[i];
+
+            if (nextR >= 0 && nextR < numRows && nextC >= 0 && nextC < numCols && 
+                !grid[nextR][nextC].occupied && !closedList[nextR][nextC]) {
+                
+                float tentativeGCost = gCosts[r][c] + moveCost[i];
+
+                if (tentativeGCost < gCosts[nextR][nextC]) {
+                    parents[nextR][nextC] = {r, c};
+                    gCosts[nextR][nextC] = tentativeGCost;
+                    float hCost = CalculateHeuristic(nextR, nextC, endCell.first, endCell.second);
+                    openList.push(AStarNode(nextR, nextC, tentativeGCost, hCost, {r,c} ));
+                }
+            }
+        }
+    }
+    return path; // No path found
+}
+
+std::pair<int, int> Map::GetBridgeGridLocation() const {
+    // This should return a representative grid cell for the bridge, e.g., its center or entry.
+    // Based on Initialize, bridge starts at (bridgeTop, bridgeStart)
+    // For simplicity, returning the top-left-most cell of the bridge area.
+    // You might want to refine this to be the center or a specific target cell within the bridge.
+    int bridgeActualStartCol = numCols - (numCols / 10); // Recalculate or store bridgeStartCol if not a member
+    int bridgeActualTopRow = (numRows - (numRows / 10)) / 2; // Recalculate or store bridgeTopRow
+    int bridgeActualHeight = numRows / 10;
+
+    // Return the center of the first column of the bridge area
+    return std::make_pair(bridgeActualTopRow + bridgeActualHeight / 2, bridgeActualStartCol);
+}
+
+float Map::GetMapPixelWidth() const {
+    return static_cast<float>(numCols * CELL_SIZE);
+}
+
+float Map::GetMapPixelHeight() const {
+    return static_cast<float>(numRows * CELL_SIZE);
 } 

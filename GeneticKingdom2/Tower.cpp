@@ -1,5 +1,6 @@
 #include "framework.h"
 #include "Tower.h"
+#include "Enemy.h" // Include full definition of Enemy for usage
 #include <cmath>
 #include "Map.h" // Para incluir la definición completa de DummyTarget
 #include <random> // Para std::mt19937 y std::uniform_int_distribution
@@ -367,41 +368,9 @@ ProjectileType Tower::GetProjectileType() const
     return baseProjectileType;
 }
 
-// Actualiza la lógica de la torre e intenta disparar si es posible (hacia la dirección por defecto)
-void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize)
-{
-    // Disminuir tiempo de recarga
-    if (attackCooldown > 0) {
-        attackCooldown -= deltaTime;
-        if (attackCooldown < 0) {
-            attackCooldown = 0;
-        }
-    }
-    
-    // Si el tiempo de recarga ha terminado, disparar
-    if (attackCooldown <= 0) {
-        // Calcular punto objetivo en el máximo rango
-        int range = GetRange();
-        int targetRow = row;
-        int targetCol = col + range; // Por defecto, disparar hacia la derecha
-        
-        // Crear un nuevo proyectil
-        projectileManager.AddProjectile(
-            GetProjectileType(),
-            row, col,            // Posición de inicio
-            targetRow, targetCol, // Posición objetivo
-            cellSize
-        );
-        
-        // Reiniciar el tiempo de recarga según la velocidad de ataque
-        attackCooldown = 1.0f / GetAttackSpeed();
-    }
-}
-
 // Actualiza la lógica de la torre e intenta disparar hacia el objetivo más cercano
-void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<DummyTarget>& targets)
+void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<Enemy>& enemies)
 {
-    // Disminuir tiempo de recarga
     if (attackCooldown > 0) {
         attackCooldown -= deltaTime;
         if (attackCooldown < 0) {
@@ -409,73 +378,56 @@ void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int ce
         }
     }
     
-    // Si el tiempo de recarga ha terminado y hay objetivos, disparar al más cercano
-    if (attackCooldown <= 0 && !targets.empty()) {
-        // Mensaje de depuración para confirmar que la torre intenta disparar
-        WCHAR debugMsg[256];
-        swprintf_s(debugMsg, L"Torre en [%d,%d] intentando disparar. Targets disponibles: %zd\n", 
-                  row, col, targets.size());
-        OutputDebugStringW(debugMsg);
-        
-        // Obtener el rango de la torre
+    if (attackCooldown <= 0 && !enemies.empty()) {
         int range = GetRange();
-        
-        // Buscar el objetivo más cercano dentro del rango
-        const DummyTarget* closestTarget = nullptr;
-        float minDistance = FLT_MAX;
-        
-        for (const auto& target : targets) {
-            // Calcular distancia euclidiana
-            float dx = target.col - col;
-            float dy = target.row - row;
-            float distance = sqrtf(dx * dx + dy * dy);
-            
-            // Si está dentro del rango y es más cercano que el anterior más cercano
-            if (distance <= range && distance < minDistance) {
-                closestTarget = &target;
-                minDistance = distance;
+        float towerCenterX = (col + 0.5f) * cellSize;
+        float towerCenterY = (row + 0.5f) * cellSize;
+
+        const Enemy* closestEnemy = nullptr;
+        float minDistanceSq = FLT_MAX; // Use squared distance to avoid sqrt
+
+        for (const auto& enemy : enemies) {
+            if (!enemy.IsActive() || !enemy.IsAlive()) {
+                continue; // Skip inactive or dead enemies
+            }
+
+            // Harpy targeting rule: Gunners cannot target flying enemies
+            if (type == TowerType::GUNNER && enemy.IsFlying()) {
+                continue; 
+            }
+            // Note: Your requirement "Harpías: ... solo pueden ser atacadas por torres de magos y arqueros"
+            // is covered if Gunners can't target flying, and Archers/Mages can.
+
+            float dx = enemy.GetX() - towerCenterX;
+            float dy = enemy.GetY() - towerCenterY;
+            float distanceSq = dx * dx + dy * dy;
+            float rangePixels = static_cast<float>(range * cellSize);
+
+            if (distanceSq <= (rangePixels * rangePixels) && distanceSq < minDistanceSq) {
+                closestEnemy = &enemy;
+                minDistanceSq = distanceSq;
             }
         }
         
-        // Si se encontró un objetivo en rango, disparar a él
-        if (closestTarget) {
-            // Mensaje de depuración para confirmar disparo a objetivo
-            swprintf_s(debugMsg, L"Torre en [%d,%d] disparando a objetivo en [%d,%d]. Distancia: %.2f\n", 
-                      row, col, closestTarget->row, closestTarget->col, minDistance);
-            OutputDebugStringW(debugMsg);
-            
-            // Crear un nuevo proyectil
+        if (closestEnemy) {
+            // Convert enemy pixel coordinates to target grid cell for AddProjectile
+            // AddProjectile expects target grid cell, not precise pixel.
+            // The projectile itself will fly towards the enemy's continuously updated pixel position if implemented that way.
+            // For now, AddProjectile takes targetRow, targetCol which is a grid cell.
+            int targetEnemyCellCol = static_cast<int>(closestEnemy->GetX() / cellSize);
+            int targetEnemyCellRow = static_cast<int>(closestEnemy->GetY() / cellSize);
+
             projectileManager.AddProjectile(
                 GetProjectileType(),
-                row, col,                       // Posición de inicio
-                closestTarget->row, closestTarget->col, // Posición objetivo
-                cellSize
+                row, col,                       
+                targetEnemyCellRow, targetEnemyCellCol, 
+                cellSize,
+                closestEnemy->GetX(), closestEnemy->GetY() // Pass precise target coords for homing/direct shot
             );
             
-            // Reiniciar el tiempo de recarga según la velocidad de ataque
             attackCooldown = 1.0f / GetAttackSpeed();
         }
-        // Si no hay objetivos en rango, disparar en la dirección predeterminada
-        else {
-            // Mensaje de depuración - no se encontró objetivo en rango
-            swprintf_s(debugMsg, L"Torre en [%d,%d] no encontró objetivos en rango. Disparando por defecto.\n",
-                      row, col);
-            OutputDebugStringW(debugMsg);
-            
-            int targetRow = row;
-            int targetCol = col + range; // Por defecto, disparar hacia la derecha
-            
-            // Crear un nuevo proyectil
-            projectileManager.AddProjectile(
-                GetProjectileType(),
-                row, col,            // Posición de inicio
-                targetRow, targetCol, // Posición objetivo
-                cellSize
-            );
-            
-            // Reiniciar el tiempo de recarga según la velocidad de ataque
-            attackCooldown = 1.0f / GetAttackSpeed();
-        }
+        // No default firing if no valid enemy in range, tower waits.
     }
 }
 
@@ -575,19 +527,11 @@ void TowerManager::DrawTowerRanges(HDC hdc, int cellSize)
     }
 }
 
-// Actualiza la lógica de todas las torres (disparo por defecto)
-void TowerManager::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize)
+// Actualiza la lógica de todas las torres (apuntando a enemigos)
+void TowerManager::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<Enemy>& enemies)
 {
     for (auto& tower : towers) {
-        tower->Update(deltaTime, projectileManager, cellSize);
-    }
-}
-
-// Actualiza la lógica de todas las torres (apuntando a objetivos dummy)
-void TowerManager::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<DummyTarget>& targets)
-{
-    for (auto& tower : towers) {
-        tower->Update(deltaTime, projectileManager, cellSize, targets);
+        tower->Update(deltaTime, projectileManager, cellSize, enemies);
     }
 }
 

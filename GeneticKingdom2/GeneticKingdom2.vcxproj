@@ -128,7 +128,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Economy.h" />
+    <ClInclude Include="Enemy.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="GeneticAlgorithm.h" />
     <ClInclude Include="GeneticKingdom2.h" />
     <ClInclude Include="Map.h" />
     <ClInclude Include="Projectile.h" />
@@ -138,6 +140,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Economy.cpp" />
+    <ClCompile Include="Enemy.cpp" />
+    <ClCompile Include="GeneticAlgorithm.cpp" />
     <ClCompile Include="GeneticKingdom2.cpp" />
     <ClCompile Include="Map.cpp" />
     <ClCompile Include="Projectile.cpp" />

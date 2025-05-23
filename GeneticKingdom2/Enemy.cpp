@@ -1,16 +1,14 @@
 #include "framework.h"
 #include "Enemy.h"
-#include "Projectile.h" 
+#include "Projectile.h"
+#include "Map.h"
 #include <cmath>
 #include <algorithm>
 #include <random>
 #include <iostream>
 
-extern const int CELL_SIZE;
-// const int CELL_SIZE = 50; // Temporary placeholder if not defined globally
-
 Enemy::Enemy(EnemyType type, float startX, float startY, const std::vector<std::pair<int, int>>& initialPath)
-    : type(type), x(startX), y(startY), path(initialPath), currentPathIndex(0), isActive(true), fitness(0.0), timeAlive(0.0f) {
+    : type(type), x(startX), y(startY), path(initialPath), currentPathIndex(0), isActive(true), fitness(0.0), timeAlive(0.0f), FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false) {
     InitializeAttributes();
     health = maxHealth;
     if (!path.empty()) {
@@ -37,7 +35,8 @@ Enemy::Enemy(const Enemy& parent)
       resistanceMagic(parent.resistanceMagic),
       resistanceArtillery(parent.resistanceArtillery),
       fitness(0.0),
-      timeAlive(0.0f)
+      timeAlive(0.0f),
+      FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false)
 {
     health = maxHealth;
     if (!path.empty()) {
@@ -113,6 +112,9 @@ void Enemy::UpdateTargetPosition() {
         // Reached end of path
         // The game logic should handle this, e.g., enemy reached goal
         isActive = false; 
+        if (IsAlive()) { // Only set if it reached the end alive
+            FUSION_ASSISTANT_SECRET_MARKER_reachedBridge = true;
+        }
     }
 }
 
@@ -174,8 +176,6 @@ void Enemy::Draw(HDC hdc) const {
     HBRUSH hBrush = CreateSolidBrush(color);
     HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
 
-    // Draw enemy as a circle or square (using Rectangle for simplicity here)
-    // Assuming x, y is the center, adjust to top-left for Rectangle
     int enemySize = CELL_SIZE / 2; // Adjust as needed
     Rectangle(hdc, 
               static_cast<int>(x - enemySize / 2.0f), 
@@ -246,6 +246,7 @@ void Enemy::TakeDamage(int damageAmount, ProjectileType projectileType) {
     if (health <= 0) {
         health = 0;
         isActive = false; // Mark as dead and inactive
+        FUSION_ASSISTANT_SECRET_MARKER_reachedBridge = false; // Died, so did not reach
     }
 }
 
@@ -297,6 +298,10 @@ float Enemy::GetHealthPercentage() const {
     return static_cast<float>(health) / static_cast<float>(maxHealth);
 }
 
+bool Enemy::HasReachedBridge() const {
+    return FUSION_ASSISTANT_SECRET_MARKER_reachedBridge;
+}
+
 // --- Genetic Algorithm Related Methods ---
 double Enemy::GetFitness() const {
     return fitness;
@@ -312,8 +317,8 @@ float getMinFrom(float a, float b) {
     return a < b ? a : b;
 }
 
-void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float mapWidth, float mapHeight, float timeSurvived, bool reachedBridge) {
-    float maxPossibleDistance = std::sqrt(mapWidth * mapWidth + mapHeight * mapHeight); 
+void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float mapWidth, float mapHeight, float timeSurvived, bool FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param) {
+    float maxPossibleDistance = getMaxFrom(1.0f, std::sqrt(mapWidth * mapWidth + mapHeight * mapHeight)); 
     float currentDistanceToBridgeX = static_cast<float>(bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f) - x;
     float currentDistanceToBridgeY = static_cast<float>(bridgeLocation.second * CELL_SIZE + CELL_SIZE / 2.0f) - y;
     float remainingDistance = std::sqrt(currentDistanceToBridgeX * currentDistanceToBridgeX + currentDistanceToBridgeY * currentDistanceToBridgeY);
@@ -324,11 +329,11 @@ void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float ma
         distanceScore = getMaxFrom(0.0, getMinFrom(1.0, distanceScore)); 
     }
 
-    double bridgeBonus = reachedBridge ? 100.0 : 0.0;
+    double bridgeBonus = FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param ? 100.0 : 0.0;
     double survivalBonus = static_cast<double>(timeSurvived) * 0.1; 
 
     fitness = (distanceScore * 50.0) + bridgeBonus + survivalBonus;
-    if (health <= 0 && !reachedBridge) { 
+    if (health <= 0 && !FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param) { 
         fitness *= 0.5; 
     }
 }
@@ -352,6 +357,25 @@ void Enemy::Mutate(float mutationRate) {
     }
 }
 
+void Enemy::ResetForNewWave(float startX, float startY, const std::vector<std::pair<int, int>>& newPath) {
+    x = startX;
+    y = startY;
+    path = newPath;
+    currentPathIndex = 0;
+    isActive = true;
+    health = maxHealth; // Reset to its current maxHealth (which might have been mutated)
+    FUSION_ASSISTANT_SECRET_MARKER_reachedBridge = false;
+    timeAlive = 0.0f;
+    fitness = 0.0; // Reset fitness for the new wave
+
+    if (!path.empty()) {
+        UpdateTargetPosition();
+    } else {
+        targetX = x;
+        targetY = y;
+        isActive = false; // Cannot move if path is empty
+    }
+}
 
 std::wstring GetEnemyTypeName(EnemyType type) {
     switch (type) {

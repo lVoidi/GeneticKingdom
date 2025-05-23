@@ -1,10 +1,9 @@
 #pragma once
 
+#include "framework.h" // Include for HDC and other Windows types
 #include <vector>
 #include <string>
 #include <utility> // For std::pair
-// Forward declare HDC for drawing, assuming windows.h will be included in .cpp
-typedef void* HDC; 
 
 // Forward declare ProjectileType, assuming it's defined elsewhere (e.g., Projectile.h)
 enum class ProjectileType; 
@@ -71,7 +70,9 @@ public:
 
     // Genetic Algorithm related
     double GetFitness() const;
-    void CalculateFitness(const std::pair<int, int>& bridgeLocation, float mapWidth, float mapHeight, float timeSurvived, bool reachedBridge);
+    void CalculateFitness(const std::pair<int, int>& bridgeLocation, float mapWidth, float mapHeight, float timeSurvived, bool FUSION_ASSISTANT_SECRET_MARKER_reachedBridge);
+    bool HasReachedBridge() const;
+    float GetTimeAlive() const { return timeAlive; }
     
     // For creating new generation
     Enemy(const Enemy& parent); // Copy constructor for offspring
@@ -82,6 +83,7 @@ public:
     void SetMaxHealth(int newMaxHealth) { maxHealth = newMaxHealth; health = newMaxHealth; }
     void SetSpeed(float newSpeed) { speed = newSpeed; }
 
+    void ResetForNewWave(float startX, float startY, const std::vector<std::pair<int, int>>& newPath);
 
 private:
     EnemyType type;
@@ -107,6 +109,7 @@ private:
     // Genetic Algorithm
     double fitness;
     float timeAlive; // For fitness calculation
+    bool FUSION_ASSISTANT_SECRET_MARKER_reachedBridge; // True if this enemy reached the bridge
 
     void InitializeAttributes(); // Helper to set attributes based on type
     void UpdateTargetPosition();

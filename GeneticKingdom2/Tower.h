@@ -12,6 +12,7 @@
 
 // Forward declaration para evitar inclusión circular
 struct DummyTarget;
+class Enemy; // Forward declare Enemy class
 
 // Definición de tipos de torre
 enum class TowerType {
@@ -69,8 +70,8 @@ public:
     // Actualiza la lógica de la torre e intenta disparar si es posible (hacia la dirección por defecto)
     void Update(float deltaTime, ProjectileManager& projectileManager, int cellSize);
     
-    // Actualiza la lógica de la torre e intenta disparar hacia el objetivo más cercano
-    void Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<DummyTarget>& targets);
+    // Actualiza la lógica de la torre e intenta disparar hacia el enemigo más cercano
+    void Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<Enemy>& enemies);
     
     // Muestra/oculta el rango de la torre
     void SetShowRange(bool show);
@@ -124,8 +125,8 @@ public:
     // Actualiza la lógica de todas las torres (disparo por defecto)
     void Update(float deltaTime, ProjectileManager& projectileManager, int cellSize);
     
-    // Actualiza la lógica de todas las torres (apuntando a objetivos dummy)
-    void Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<DummyTarget>& targets);
+    // Actualiza la lógica de todas las torres (apuntando a enemigos)
+    void Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<Enemy>& enemies);
     
     // Activa la visualización del rango para una torre específica
     void ShowRangeForTower(int row, int col);

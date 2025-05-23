@@ -70,6 +70,12 @@ public:
     // Obtiene el número de filas
     int GetNumRows() const;
 
+    // Obtiene el ancho de la cuadrícula (número de columnas)
+    int GetGridWidth() const;
+
+    // Obtiene la altura de la cuadrícula (número de filas)
+    int GetGridHeight() const;
+
     // Verifica si una celda está ocupada
     bool IsCellOccupied(int row, int col) const;
 
@@ -95,7 +101,7 @@ public:
     void DrawConstructionMenu(HDC hdc);
 
     // Actualiza la lógica del mapa
-    void Update(float deltaTime);
+    void Update(float deltaTime, std::vector<Enemy>& enemies);
 
     // Obtiene el estado de construcción actual
     ConstructionState GetConstructionState() const;
@@ -120,6 +126,18 @@ public:
     
     // Método para generar objetivos dummy aleatoriamente
     void GenerateRandomTargets(int count);
+
+    // Encuentra un camino desde startCell hasta endCell usando A*
+    std::vector<std::pair<int, int>> GetPath(std::pair<int, int> startCell, std::pair<int, int> endCell) const;
+
+    // Obtiene la ubicación del puente en coordenadas de cuadrícula (podría ser el centro o un punto de referencia)
+    std::pair<int, int> GetBridgeGridLocation() const;
+
+    // Obtiene el ancho del mapa en píxeles
+    float GetMapPixelWidth() const;
+
+    // Obtiene la altura del mapa en píxeles
+    float GetMapPixelHeight() const;
 
 private:
     std::vector<std::vector<Cell>> grid;                 // Matriz 2D para la cuadrícula
