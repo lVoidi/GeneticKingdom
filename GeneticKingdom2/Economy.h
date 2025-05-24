@@ -17,7 +17,7 @@ public:
     ~Economy();
 
     // Inicializa la economía con un valor inicial de oro
-    void Initialize(int initialGold = 500);
+    void Initialize(int initialGold = 350);
 
     // Obtiene la cantidad actual de oro
     int GetGold() const;

@@ -22,13 +22,19 @@
 // Tamaño de cada celda en píxeles
 #define CELL_SIZE 50
 
+// Forward declarations
+class TowerManager;
+class Economy;
+class ProjectileManager;
+
 // Representa una celda en el mapa
 struct Cell {
     bool occupied = false;           // Indica si la celda está ocupada por una torre
     bool isPath = false;             // Indica si la celda es parte del camino
     bool isEntryPoint = false;       // Indica si es un punto de entrada de enemigos
     bool isBridge = false;           // Indica si es parte del puente del castillo
-    bool isConstructionSpot = true; // Indica si es un punto donde se puede construir una torre
+    bool isConstructionSpot = false; // VALOR POR DEFECTO CAMBIADO A FALSE
+    // Puedes añadir más propiedades a la celda si es necesario
 };
 
 // Estados de construcción
@@ -93,7 +99,7 @@ public:
     void DrawConstructionMenu(HDC hdc);
 
     // Actualiza la lógica del mapa
-    void Update(float deltaTime, std::vector<Enemy>& enemies);
+    void Update(float deltaTime, std::vector<Enemy>& currentWaveEnemies);
 
     // Obtiene el estado de construcción actual
     ConstructionState GetConstructionState() const;
@@ -122,6 +128,12 @@ public:
     // Obtiene la altura del mapa en píxeles
     float GetMapPixelHeight() const;
 
+    // Temporary Obstacles for Pathfinding Variation
+    void AddTemporaryObstacle(int row, int col);
+    void RemoveTemporaryObstacle(int row, int col); // Specific removal if needed
+    void ClearTemporaryObstacles();
+    bool IsCellTemporarilyObstructed(int row, int col) const;
+
 private:
     std::vector<std::vector<Cell>> grid;                 // Matriz 2D para la cuadrícula
     int numRows;                                         // Número de filas en la cuadrícula
@@ -148,4 +160,6 @@ private:
     
     // Gestor de proyectiles
     ProjectileManager projectileManager;
+
+    std::vector<std::pair<int, int>> temporaryObstacles;
 }; 
