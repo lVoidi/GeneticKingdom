@@ -1,4 +1,4 @@
-# Reino Genético
+# Genetic kingdom
 
 Un juego de Tower Defense que implementa algoritmos genéticos y pathfinding en C++.
 
