@@ -44,6 +44,8 @@ RECT g_menuRect = { 0 };                        // Rect del menú actual
 GeneticAlgorithm* g_pGeneticAlgorithm = nullptr; // Pointer to allow deferred construction
 std::vector<Enemy> g_currentWaveEnemies;
 int g_currentWaveNumber = 0;
+float g_timeSinceWaveEnd = 0.0f; // Time since the current wave ended
+const float WAVE_DELAY = 3.0f; // Delay between waves in seconds
 
 // Declaraciones de funciones adelantadas incluidas en este módulo de código:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -402,58 +404,94 @@ void UpdateGame(float deltaTime) {
 
     // Actualizar enemigos
     bool anyActiveEnemies = false;
+    bool anyUnspawnedEnemies = false;
+    int aliveEnemies = 0;
+    int deadEnemies = 0;
+    int reachedBridge = 0;
+    
     std::wstringstream wss_ug_loop;
-    wss_ug_loop << L"UpdateGame Loop (Pre-EnemyUpdate) - Wave: " << g_currentWaveNumber << L"\n";
+    wss_ug_loop << L"UpdateGame Loop - Wave: " << g_currentWaveNumber << L", Enemies: " << g_currentWaveEnemies.size() << L"\n";
 
     for (Enemy& enemy : g_currentWaveEnemies) {
+        bool wasActive = enemy.IsActive();
+        bool wasAlive = enemy.IsAlive();
+        bool hasSpawned = enemy.HasSpawned();
+        
         wss_ug_loop << L"  Enemy ID: " << std::hex << &enemy 
-                    << L", Health: " << enemy.GetHealth()
-                    << L"/" << enemy.GetMaxHealth()
-                    << L", IsActive: " << (enemy.IsActive() ? L"Yes" : L"No") 
-                    << L", IsAlive: " << (enemy.IsAlive() ? L"Yes" : L"No") 
-                    << L", X: " << enemy.GetX() << L", Y: " << enemy.GetY();
-        if (enemy.IsActive()) {
-            enemy.Update(deltaTime);
+                    << L", Type: " << static_cast<int>(enemy.GetType())
+                    << L", Health: " << enemy.GetHealth() << L"/" << enemy.GetMaxHealth()
+                    << L", IsActive: " << (wasActive ? L"Yes" : L"No") 
+                    << L", IsAlive: " << (wasAlive ? L"Yes" : L"No")
+                    << L", HasSpawned: " << (hasSpawned ? L"Yes" : L"No");
+        
+        // Always call Update() to handle spawn delays and movement
+        enemy.Update(deltaTime);
+        
+        // Check status after update (might have changed)
+        bool isActiveAfter = enemy.IsActive();
+        bool isAliveAfter = enemy.IsAlive();
+        bool hasSpawnedAfter = enemy.HasSpawned();
+        
+        if (!hasSpawnedAfter) {
+            anyUnspawnedEnemies = true;
+            wss_ug_loop << L", Action: Waiting to spawn (delay remaining)\n";
+        } else if (isActiveAfter && isAliveAfter) {
             anyActiveEnemies = true;
-            wss_ug_loop << L", Action: Called Update()\n";
+            aliveEnemies++;
+            wss_ug_loop << L", Action: Updated (active & alive)\n";
+        } else if (!isAliveAfter) {
+            deadEnemies++;
+            wss_ug_loop << L", Action: Dead\n";
+        } else if (enemy.HasReachedBridge()) {
+            reachedBridge++;
+            wss_ug_loop << L", Action: Reached bridge\n";
         } else {
-            wss_ug_loop << L", Action: Skipped Update()\n";
+            wss_ug_loop << L", Action: Inactive\n";
         }
     }
+    
+    wss_ug_loop << L"Summary - Active: " << anyActiveEnemies << L", Unspawned: " << anyUnspawnedEnemies 
+                << L", Alive: " << aliveEnemies << L", Dead: " << deadEnemies << L", ReachedBridge: " << reachedBridge;
     OutputDebugStringW(wss_ug_loop.str().c_str());
 
     // Wave end and GA logic
-    if (!anyActiveEnemies && g_pGeneticAlgorithm) { // Wave is over
-        std::wstringstream wss_ga_start;
-        wss_ga_start << L"UpdateGame: All enemies inactive. Starting GA for next wave (current wave " << g_currentWaveNumber << L").\n";
-        OutputDebugStringW(wss_ga_start.str().c_str());
-        // Ensure bridgeLocation is correctly fetched for fitness calculation
-        std::pair<int, int> bridgeGridLoc = gameMap.GetBridgeGridLocation();
-        float mapPixelWidth = gameMap.GetMapPixelWidth();
-        float mapPixelHeight = gameMap.GetMapPixelHeight();
-
-        for (Enemy& enemy : g_currentWaveEnemies) {
-            // Fitness is calculated using the enemy's own timeAlive and whether it reached the bridge
-            enemy.CalculateFitness(bridgeGridLoc, mapPixelWidth, mapPixelHeight, 
-                                   enemy.GetTimeAlive(), enemy.HasReachedBridge());
-        }
-
-        g_pGeneticAlgorithm->SetCurrentPopulation(g_currentWaveEnemies);
+    bool waveIsOver = !anyActiveEnemies && !anyUnspawnedEnemies;
+    
+    if (waveIsOver) {
+        g_timeSinceWaveEnd += deltaTime;
         
-        std::wstringstream wss_ga_pre_gen;
-        wss_ga_pre_gen << L"UpdateGame: Population set for GA. Generating new generation...\n";
-        OutputDebugStringW(wss_ga_pre_gen.str().c_str());
+        if (g_timeSinceWaveEnd >= WAVE_DELAY && g_pGeneticAlgorithm) {
+            std::wstringstream wss_ga_start;
+            wss_ga_start << L"UpdateGame: Wave " << g_currentWaveNumber << L" ended. Starting GA for next wave.\n";
+            wss_ga_start << L"  Final stats - Alive: " << aliveEnemies << L", Dead: " << deadEnemies << L", ReachedBridge: " << reachedBridge << L"\n";
+            OutputDebugStringW(wss_ga_start.str().c_str());
+            
+            // Calculate fitness for all enemies
+            std::pair<int, int> bridgeGridLoc = gameMap.GetBridgeGridLocation();
+            float mapPixelWidth = gameMap.GetMapPixelWidth();
+            float mapPixelHeight = gameMap.GetMapPixelHeight();
 
-        g_currentWaveEnemies = g_pGeneticAlgorithm->GenerateNewGeneration();
-        g_currentWaveNumber++;
-        
-        std::wstringstream wss_ga_post_gen;
-        wss_ga_post_gen << L"UpdateGame: New wave " << g_currentWaveNumber << L" generated with " << g_currentWaveEnemies.size() << L" enemies.\n";
-        for (const auto& en : g_currentWaveEnemies) {
-            wss_ga_post_gen << L"  NewGen Enemy ID: " << std::hex << &en << L", Health: " << en.GetHealth() 
-                            << L"/" << en.GetMaxHealth()
-                            << L", IsActive: " << (en.IsActive() ? L"Yes" : L"No") << L", X: " << en.GetX() << L", Y: " << en.GetY() << L"\n";
+            for (Enemy& enemy : g_currentWaveEnemies) {
+                enemy.CalculateFitness(bridgeGridLoc, mapPixelWidth, mapPixelHeight, 
+                                       enemy.GetTimeAlive(), enemy.HasReachedBridge());
+            }
+
+            // Evaluate fitness and select parents
+            g_pGeneticAlgorithm->SetCurrentPopulation(g_currentWaveEnemies);
+            g_pGeneticAlgorithm->EvaluateFitness(0.0f, reachedBridge > 0); // timeSurvivedByWave can be 0, we use individual timeAlive
+            g_pGeneticAlgorithm->SelectParents();
+            g_pGeneticAlgorithm->CrossoverAndMutate();
+            
+            // Generate new wave
+            g_currentWaveEnemies = g_pGeneticAlgorithm->GenerateNewGeneration();
+            g_currentWaveNumber++;
+            g_timeSinceWaveEnd = 0.0f; // Reset the timer
+            
+            std::wstringstream wss_ga_post_gen;
+            wss_ga_post_gen << L"UpdateGame: New wave " << g_currentWaveNumber << L" generated with " << g_currentWaveEnemies.size() << L" enemies.\n";
+            OutputDebugStringW(wss_ga_post_gen.str().c_str());
         }
-        OutputDebugStringW(wss_ga_post_gen.str().c_str());
+    } else {
+        g_timeSinceWaveEnd = 0.0f; // Reset timer if wave is not over yet
     }
 }

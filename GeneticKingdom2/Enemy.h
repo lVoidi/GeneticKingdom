@@ -88,6 +88,14 @@ public:
     void SetMaxHealth(int newMaxHealth) { maxHealth = newMaxHealth; health = newMaxHealth; }
     void SetSpeed(float newSpeed) { speed = newSpeed; }
     int GetHealth() const { return health; }
+    
+        // PathJitter getter/setter for genetic algorithm
+    float GetPathJitter() const { return pathJitter; }
+    void SetPathJitter(float jitter) { pathJitter = jitter; }
+
+    // Spawn delay methods for enemy spacing
+    void SetSpawnDelay(float delay);
+    bool HasSpawned() const;
 
     void ResetForNewWave(float startX, float startY, const std::vector<std::pair<int, int>>& newPath);
 
@@ -110,11 +118,6 @@ private:
     bool isActive; // Whether the enemy is currently in play
     bool isFlying;
 
-    // Resistances (1.0 = normal damage, <1.0 = resistant, >1.0 = vulnerable)
-    float resistanceArrow;
-    float resistanceMagic;
-    float resistanceArtillery;
-
     // Genetic Algorithm
     double fitness;
     float timeAlive; // For fitness calculation
@@ -122,6 +125,17 @@ private:
 
     void InitializeAttributes(); // Helper to set attributes based on type
     void UpdateTargetPosition();
+
+    // Resistances (1.0 = normal damage, <1.0 = resistant, >1.0 = vulnerable)
+    float resistanceArrow;
+    float resistanceMagic;
+    float resistanceArtillery;
+
+    // Movement randomness (0.0 = follows path exactly, 1.0 = maximum random deviation)
+    float pathJitter;
+
+    float spawnDelay;
+    bool hasSpawned;
 };
 
 // Function to get a string representation of enemy type (for debugging, UI)

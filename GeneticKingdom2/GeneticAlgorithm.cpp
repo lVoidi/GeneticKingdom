@@ -8,269 +8,398 @@
 #include <sstream>   // For logging
 #include <iomanip>   // For logging
 
-// CELL_SIZE is defined as a macro in Map.h
-// extern const int CELL_SIZE;
+// Helper functions to avoid conflicts with Windows macros
+double getMaxFromDouble(double a, double b) {
+    return a > b ? a : b;
+}
 
-GeneticAlgorithm::GeneticAlgorithm(int popSize, float mutRate, float crossRate,
-                                   const std::pair<int, int>& entry, 
-                                   const std::pair<int, int>& bridge, 
+double getMinFromDouble(double a, double b) {
+    return a < b ? a : b;
+}
+
+// Constructor
+GeneticAlgorithm::GeneticAlgorithm(int populationSize, float mutationRate, float crossoverRate,
+                                   const std::pair<int, int>& entryPoint,
+                                   const std::pair<int, int>& bridgeLocation,
                                    const Map* gameMap)
-    : populationSize(popSize), mutationRate(mutRate), crossoverRate(crossRate),
-      enemyEntryPoint(entry), bridgeLocation(bridge), currentMap(gameMap) {
+    : populationSize(populationSize), mutationRate(mutationRate), crossoverRate(crossoverRate),
+      enemyEntryPoint(entryPoint), bridgeLocation(bridgeLocation), currentMap(gameMap) {
     
+    // Calculate initial path from entry to bridge
     if (currentMap) {
-        // Attempt to get an initial path from the map.
-        // This assumes Map class has a method like GetPath(start, end).
-        // The actual start/end for pathfinding might be the center of the cells.
-        initialEnemyPath = currentMap->GetPath(enemyEntryPoint, bridgeLocation);
-        if (initialEnemyPath.empty()) {
-            // std::cerr << "Warning: Initial pathfinding failed in GeneticAlgorithm constructor." << std::endl;
-            // Fallback or error handling needed here. Maybe a default straight path or mark GA as non-functional.
-        }
-    } else {
-        // std::cerr << "Error: Map object is null in GeneticAlgorithm constructor." << std::endl;
-        // Handle this critical error, perhaps by throwing an exception or setting an error state.
+        initialEnemyPath = currentMap->GetPath(entryPoint, bridgeLocation);
     }
+    
+    OutputDebugStringW(L"GeneticAlgorithm initialized\n");
 }
 
+// Destructor
 GeneticAlgorithm::~GeneticAlgorithm() {
+    OutputDebugStringW(L"GeneticAlgorithm destroyed\n");
 }
 
+// Initialize population with 3 enemies of each type (12 total)
 void GeneticAlgorithm::InitializePopulation() {
     population.clear();
-    for (int i = 0; i < populationSize; ++i) {
-        // For now, create a mix of enemy types, or a default one.
-        // Attributes will be base, or slightly randomized if CreateRandomEnemy is implemented.
-        EnemyType type = static_cast<EnemyType>(i % 4); // Cycle through Ogre, Dark Elf, Harpy, Mercenary
-        
-        float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
-        float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
-
-        Enemy newEnemy(type, startX, startY, initialEnemyPath);
-        population.push_back(newEnemy);
+    
+    std::wstringstream wss;
+    wss << L"GeneticAlgorithm::InitializePopulation - Creating " << populationSize << L" enemies\n";
+    OutputDebugStringW(wss.str().c_str());
+    
+    // Create exactly 3 of each enemy type
+    EnemyType types[] = { EnemyType::OGRE, EnemyType::DARK_ELF, EnemyType::HARPY, EnemyType::MERCENARY };
+    
+    for (EnemyType type : types) {
+        for (int i = 0; i < 3; ++i) {
+            // Convert grid coordinates to pixel coordinates
+            float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
+            float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
+            
+            Enemy enemy(type, startX, startY, initialEnemyPath);
+            
+            // Apply heavy mutation for initial diversity
+            enemy.Mutate(1.0f); // 100% mutation rate for initial population
+            
+            // Set spawn delay to space out enemies (each enemy spawns 1 second after the previous)
+            float spawnDelay = static_cast<float>(population.size()) * 1.0f;
+            enemy.SetSpawnDelay(spawnDelay);
+            
+            population.push_back(enemy);
+        }
     }
+    
+    wss.str(L"");
+    wss << L"GeneticAlgorithm::InitializePopulation - Created " << population.size() << L" enemies\n";
+    OutputDebugStringW(wss.str().c_str());
 }
 
-// Fitness evaluation is now handled by the game loop, calling enemy.CalculateFitness() directly.
-// This method is no longer needed here, or can be re-purposed if GA needs to trigger it.
-/*
-void GeneticAlgorithm::EvaluateFitness(float timeSurvivedOverall, bool anyEnemyReachedBridge) {
-    if (!currentMap) return;
-
-    float mapPixelWidth = static_cast<float>(currentMap->GetGridWidth() * CELL_SIZE);
-    float mapPixelHeight = static_cast<float>(currentMap->GetGridHeight() * CELL_SIZE);
-
+// Evaluate fitness for all enemies in the population
+void GeneticAlgorithm::EvaluateFitness(float timeSurvivedByWave, bool waveReachedBridge) {
+    std::wstringstream wss;
+    wss << L"GeneticAlgorithm::EvaluateFitness - Evaluating " << population.size() << L" enemies\n";
+    OutputDebugStringW(wss.str().c_str());
+    
     for (Enemy& enemy : population) {
-        bool thisEnemyReachedBridge = false; 
-        if (anyEnemyReachedBridge) { 
-            float distToBridgeSq = (enemy.GetX() - (bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f)) * 
-                                   (enemy.GetX() - (bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f)) +
-                                   (enemy.GetY() - (bridgeLocation.second * CELL_SIZE + CELL_SIZE / 2.0f)) * 
-                                   (enemy.GetY() - (bridgeLocation.second * CELL_SIZE + CELL_SIZE / 2.0f));
-            if (distToBridgeSq < (CELL_SIZE * CELL_SIZE / 4.0f)) { 
-                 thisEnemyReachedBridge = true;
-            }
-        }
-        enemy.CalculateFitness(bridgeLocation, mapPixelWidth, mapPixelHeight, enemy.GetTimeAlive(), thisEnemyReachedBridge);
+        enemy.CalculateFitness(bridgeLocation,
+                              currentMap ? currentMap->GetMapPixelWidth() : 800.0f,
+                              currentMap ? currentMap->GetMapPixelHeight() : 600.0f,
+                              enemy.GetTimeAlive(),
+                              enemy.HasReachedBridge());
+    }
+    
+    // Sort population by fitness (highest first)
+    std::sort(population.begin(), population.end(),
+              [](const Enemy& a, const Enemy& b) {
+                  return a.GetFitness() > b.GetFitness();
+              });
+              
+    // Log best and worst fitness
+    if (!population.empty()) {
+        wss.str(L"");
+        wss << L"Best fitness: " << population[0].GetFitness() 
+            << L", Worst fitness: " << population.back().GetFitness() << L"\n";
+        OutputDebugStringW(wss.str().c_str());
     }
 }
-*/
 
-Enemy GeneticAlgorithm::SelectParentRoulette() const {
-    if (population.empty()) {
-        // Should not happen if initialized. Return a default or throw.
-        // std::cerr << "Error: Attempting to select parent from empty population." << std::endl;
-        float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f);
-        float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);
-        return Enemy(EnemyType::OGRE, startX, startY, initialEnemyPath); 
-    }
-
-    double totalFitness = 0.0;
-    for (const auto& enemy : population) {
-        totalFitness += enemy.GetFitness();
-    }
-
-    if (totalFitness == 0) {
-        // All enemies have 0 fitness, pick one at random
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(0, population.size() - 1);
-        return population[dis(gen)];
-    }
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, totalFitness);
-    double randomPoint = dis(gen);
-
-    double currentSum = 0.0;
-    for (const auto& enemy : population) {
-        currentSum += enemy.GetFitness();
-        if (currentSum >= randomPoint) {
-            return enemy;
-        }
-    }
-    return population.back(); // Should be unreachable if totalFitness > 0
-}
-
+// Select parents for reproduction using tournament selection
 void GeneticAlgorithm::SelectParents() {
     parents.clear();
-    for (int i = 0; i < populationSize; ++i) { // Selecting populationSize parents for populationSize offspring
+    
+    // Elitism: Keep top 10% directly
+    int eliteCount = static_cast<int>(population.size() * 0.1f);
+    if (eliteCount < 1) eliteCount = 1;
+    
+    for (int i = 0; i < eliteCount && i < static_cast<int>(population.size()); ++i) {
+        parents.push_back(population[i]);
+    }
+    
+    // Fill the rest with tournament selection
+    int parentsNeeded = populationSize - eliteCount;
+    
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    
+    for (int i = 0; i < parentsNeeded; ++i) {
         parents.push_back(SelectParentRoulette());
     }
+    
+    std::wstringstream wss;
+    wss << L"GeneticAlgorithm::SelectParents - Selected " << static_cast<int>(parents.size()) << L" parents\n";
+    OutputDebugStringW(wss.str().c_str());
 }
 
-// Single-point crossover for health and speed genes
-std::pair<Enemy, Enemy> GeneticAlgorithm::PerformCrossover(const Enemy& parent1, const Enemy& parent2) const {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-
-    Enemy offspring1 = parent1; // Start with a copy of parent1
-    Enemy offspring2 = parent2; // Start with a copy of parent2
-
-    if (dis(gen) < crossoverRate) {
-        // Perform crossover for maxHealth
-        int tempHealth = offspring1.GetMaxHealth();
-        offspring1.SetMaxHealth(offspring2.GetMaxHealth());
-        offspring2.SetMaxHealth(tempHealth);
-
-        // Perform crossover for speed
-        float tempSpeed = offspring1.GetSpeed();
-        offspring1.SetSpeed(offspring2.GetSpeed());
-        offspring2.SetSpeed(tempSpeed);
-        
-        // Note: Resistances are not part of crossover/mutation in this basic version
-        // but could be added if they are part of the genetic makeup.
-    }
-    return {offspring1, offspring2};
-}
-
-// This method is now effectively replaced by calling enemy.ResetForNewWave()
-/*
-void GeneticAlgorithm::EnsurePathForOffspring(Enemy& offspring) {
-    offspring.SetPath(initialEnemyPath);
-    float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
-    float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
-}
-*/
-
+// Perform crossover and mutation to create new generation
 void GeneticAlgorithm::CrossoverAndMutate() {
     std::vector<Enemy> newPopulation;
+    
     std::random_device rd;
     std::mt19937 gen(rd());
-
-    float startPixelX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
-    float startPixelY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
-
-    for (size_t i = 0; i < parents.size() / 2; ++i) {
-        const Enemy& parent1 = parents[i * 2];
-        const Enemy& parent2 = parents[i * 2 + 1];
-
-        auto offspringPair = PerformCrossover(parent1, parent2);
-        
-        offspringPair.first.Mutate(mutationRate);
-        offspringPair.first.ResetForNewWave(startPixelX, startPixelY, initialEnemyPath);
-        newPopulation.push_back(offspringPair.first);
-
-        if (newPopulation.size() < populationSize) {
-            offspringPair.second.Mutate(mutationRate);
-            offspringPair.second.ResetForNewWave(startPixelX, startPixelY, initialEnemyPath);
-            newPopulation.push_back(offspringPair.second);
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    std::uniform_int_distribution<int> parentDist(0, static_cast<int>(parents.size()) - 1);
+    
+    // Keep track of enemy types to maintain 3 of each
+    std::vector<std::vector<Enemy>> enemiesByType(4); // 4 enemy types
+    
+    while (newPopulation.size() < populationSize) {
+        if (dis(gen) < crossoverRate && parents.size() >= 2) {
+            // Select two random parents
+            int parent1Idx = parentDist(gen);
+            int parent2Idx = parentDist(gen);
+            while (parent2Idx == parent1Idx && parents.size() > 1) {
+                parent2Idx = parentDist(gen);
+            }
+            
+            auto offspring = PerformCrossover(parents[parent1Idx], parents[parent2Idx]);
+            
+            // Apply mutation
+            offspring.first.Mutate(mutationRate);
+            offspring.second.Mutate(mutationRate);
+            
+            newPopulation.push_back(offspring.first);
+            if (newPopulation.size() < populationSize) {
+                newPopulation.push_back(offspring.second);
+            }
+        } else {
+            // Direct copy with mutation
+            Enemy newEnemy = parents[parentDist(gen)];
+            newEnemy.Mutate(mutationRate);
+            newPopulation.push_back(newEnemy);
         }
     }
-    while (newPopulation.size() < populationSize && !parents.empty()) {
-         Enemy singleOffspring = parents.back(); 
-         parents.pop_back(); // Ensure we don't reuse the same parent if loop continues
-         singleOffspring.Mutate(mutationRate);
-         singleOffspring.ResetForNewWave(startPixelX, startPixelY, initialEnemyPath);
-         newPopulation.push_back(singleOffspring);
-         if (parents.empty() && newPopulation.size() < populationSize && !population.empty()){
-             // If we run out of selected parents but still need to fill, grab from original population (less ideal)
-             Enemy filler = SelectParentRoulette(); // Select another parent from original population
-             filler.Mutate(mutationRate);
-             filler.ResetForNewWave(startPixelX, startPixelY, initialEnemyPath);
-             newPopulation.push_back(filler);
-         }
-    }
-    // If the population is still not full (e.g. parents was empty or small), fill with new random enemies
-    while (newPopulation.size() < populationSize) {
-        Enemy randomNewEnemy = CreateRandomEnemy(); // Assumes CreateRandomEnemy sets path and start internally or we reset it
-        randomNewEnemy.ResetForNewWave(startPixelX, startPixelY, initialEnemyPath); // Ensure it's reset
-        newPopulation.push_back(randomNewEnemy);
-    }
-
-
+    
+    // Ensure we have exactly 3 of each type
+    RebalanceEnemyTypes(newPopulation);
+    
     population = newPopulation;
+    
+    std::wstringstream wss;
+    wss << L"GeneticAlgorithm::CrossoverAndMutate - Created new generation with " 
+        << population.size() << L" enemies\n";
+    OutputDebugStringW(wss.str().c_str());
 }
 
+
+// Generate new generation of enemies
 std::vector<Enemy> GeneticAlgorithm::GenerateNewGeneration() {
-    std::wstringstream wss_gnn_entry;
-    wss_gnn_entry << L"GA::GenerateNewGeneration - Entry. Current pop size: " << population.size();
-    OutputDebugStringW((wss_gnn_entry.str() + L"\n").c_str());
-
-    // Step 1: Evaluate fitness (Done externally)
-    // Step 2: Select parents based on fitness
-    SelectParents();
-    std::wstringstream wss_gnn_parents;
-    wss_gnn_parents << L"GA::GenerateNewGeneration - Parents selected: " << parents.size();
-    OutputDebugStringW((wss_gnn_parents.str() + L"\n").c_str());
-
-    // Step 3: Create new generation through crossover and mutation
-    CrossoverAndMutate(); // This replaces internal 'population'
-    std::wstringstream wss_gnn_mutate;
-    wss_gnn_mutate << L"GA::GenerateNewGeneration - CrossoverAndMutate done. New internal pop size: " << population.size();
-    OutputDebugStringW((wss_gnn_mutate.str() + L"\n").c_str());
-
-    return population; 
+    std::vector<Enemy> newGeneration;
+    
+    // Only use enemies that survived (reached the bridge) or performed well for breeding
+    std::vector<Enemy> survivors;
+    for (const Enemy& enemy : population) {
+        // Include enemies that either reached the bridge or have high fitness
+        if (enemy.HasReachedBridge() || enemy.GetFitness() > 50.0) {
+            survivors.push_back(enemy);
+        }
+    }
+    
+    // If no survivors, use the best performing enemies based on fitness
+    if (survivors.empty()) {
+        // Sort by fitness and take the top 50%
+        std::vector<Enemy> sortedPopulation = population;
+        std::sort(sortedPopulation.begin(), sortedPopulation.end(),
+                  [](const Enemy& a, const Enemy& b) {
+                      return a.GetFitness() > b.GetFitness();
+                  });
+        
+        int survivorCount = getMaxFromDouble(1, static_cast<int>(sortedPopulation.size()) / 2);
+        for (int i = 0; i < survivorCount; ++i) {
+            survivors.push_back(sortedPopulation[i]);
+        }
+    }
+    
+    std::wstringstream wss_survivors;
+    wss_survivors << L"GeneticAlgorithm::GenerateNewGeneration - Using " << survivors.size() 
+                  << L" survivors for breeding\n";
+    OutputDebugStringW(wss_survivors.str().c_str());
+    
+    // Create new generation based on survivors
+    for (const Enemy& survivor : survivors) {
+        // Convert grid coordinates to pixel coordinates
+        float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
+        float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
+        
+        // Create a copy and reset it for the new wave
+        Enemy newEnemy = survivor;
+        newEnemy.ResetForNewWave(startX, startY, initialEnemyPath);
+        
+        // Set spawn delay to space out enemies
+        float spawnDelay = static_cast<float>(newGeneration.size()) * 1.0f;
+        newEnemy.SetSpawnDelay(spawnDelay);
+        
+        newGeneration.push_back(newEnemy);
+    }
+    
+    // If we don't have enough enemies, create more by copying and mutating survivors
+    while (newGeneration.size() < 12) { // Ensure we have at least 12 enemies
+        if (!survivors.empty()) {
+            Enemy newEnemy = survivors[newGeneration.size() % survivors.size()];
+            
+            float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
+            float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
+            
+            newEnemy.ResetForNewWave(startX, startY, initialEnemyPath);
+            newEnemy.Mutate(0.5f); // Apply mutation for diversity
+            
+            // Set spawn delay to space out enemies
+            float spawnDelay = static_cast<float>(newGeneration.size()) * 1.0f;
+            newEnemy.SetSpawnDelay(spawnDelay);
+            
+            newGeneration.push_back(newEnemy);
+        }
+    }
+    
+    std::wstringstream wss;
+    wss << L"GeneticAlgorithm::GenerateNewGeneration - Generated " 
+        << newGeneration.size() << L" enemies for new wave\n";
+    OutputDebugStringW(wss.str().c_str());
+    
+    return newGeneration;
 }
 
+// Getter for current population
 const std::vector<Enemy>& GeneticAlgorithm::GetCurrentPopulation() const {
     return population;
 }
 
-void GeneticAlgorithm::SetCurrentPopulation(const std::vector<Enemy>& newPopulationFromGame) {
-    std::wstringstream wss_scp;
-    wss_scp << L"GA::SetCurrentPopulation - Received population from game with " << newPopulationFromGame.size() << L" enemies. Internal pop size before: " << population.size() << L".\n";
-    for(size_t i = 0; i < newPopulationFromGame.size(); ++i) {
-        const auto& en = newPopulationFromGame[i];
-        wss_scp << L"  Inbound Enemy [" << i << L"] ID: " << std::hex << &en 
-                << L", Health: " << en.GetHealth()
-                << L"/" << en.GetMaxHealth()
-                << L", IsActive: " << (en.IsActive() ? L"Yes" : L"No") 
-                << L", X: " << en.GetX() << L", Y: " << en.GetY() << L"\n";
-    }
-    
-    population = newPopulationFromGame; // This is a copy
-    wss_scp << L"GA::SetCurrentPopulation - Internal population updated. Size now: " << population.size();
-    OutputDebugStringW((wss_scp.str() + L"\n").c_str());
+// Setter for current population
+void GeneticAlgorithm::SetCurrentPopulation(const std::vector<Enemy>& population) {
+    this->population = population;
 }
 
+// Update map details if needed
 void GeneticAlgorithm::SetMapDetails(const Map* map) {
     currentMap = map;
     if (currentMap) {
         initialEnemyPath = currentMap->GetPath(enemyEntryPoint, bridgeLocation);
-         if (initialEnemyPath.empty()) {
-            // std::cerr << "Warning: Pathfinding failed in SetMapDetails." << std::endl;
-        }
-    } else {
-        // std::cerr << "Error: Map object is null in SetMapDetails." << std::endl;
     }
 }
 
-// Helper to generate a random enemy for initial population
-// This is a basic version. You might want more sophisticated randomization.
-Enemy GeneticAlgorithm::CreateRandomEnemy() {
+// Private helper: Select parent using roulette wheel selection
+Enemy GeneticAlgorithm::SelectParentRoulette() const {
+    if (population.empty()) {
+        // Fallback: create a random enemy
+        return CreateRandomEnemy();
+    }
+    
+    // Calculate total fitness
+    double totalFitness = 0.0;
+    for (const Enemy& enemy : population) {
+        totalFitness += getMaxFromDouble(0.1, enemy.GetFitness()); // Ensure minimum fitness
+    }
+    
+    // Random selection based on fitness
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> typeDist(0, 3); // For 4 enemy types
-    EnemyType randomType = static_cast<EnemyType>(typeDist(gen));
+    std::uniform_real_distribution<double> dis(0.0, totalFitness);
+    
+    double randomValue = dis(gen);
+    double cumulativeFitness = 0.0;
+    
+    for (const Enemy& enemy : population) {
+        cumulativeFitness += getMaxFromDouble(0.1, enemy.GetFitness());
+        if (cumulativeFitness >= randomValue) {
+            return enemy;
+        }
+    }
+    
+    // Fallback: return last enemy
+    return population.back();
+}
 
-    float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
-    float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
+// Private helper: Perform crossover between two parents
+std::pair<Enemy, Enemy> GeneticAlgorithm::PerformCrossover(const Enemy& parent1, const Enemy& parent2) const {
+    // Create children as copies of parents
+    Enemy child1 = parent1;
+    Enemy child2 = parent2;
+    
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    
+    // Uniform crossover for each attribute
+    if (dis(gen) < 0.5f) {
+        child1.SetMaxHealth(parent2.GetMaxHealth());
+        child2.SetMaxHealth(parent1.GetMaxHealth());
+    }
+    
+    if (dis(gen) < 0.5f) {
+        child1.SetSpeed(parent2.GetSpeed());
+        child2.SetSpeed(parent1.GetSpeed());
+    }
+    
+    if (dis(gen) < 0.5f) {
+        child1.SetPathJitter(parent2.GetPathJitter());
+        child2.SetPathJitter(parent1.GetPathJitter());
+    }
+    
+    return std::make_pair(child1, child2);
+}
 
+// Private helper: Create a random enemy for initial population
+Enemy GeneticAlgorithm::CreateRandomEnemy() const {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> typeDist(0, 3);
+    
+    EnemyType types[] = { EnemyType::OGRE, EnemyType::DARK_ELF, EnemyType::HARPY, EnemyType::MERCENARY };
+    EnemyType randomType = types[typeDist(gen)];
+    
+    // Convert grid coordinates to pixel coordinates
+    float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
+    float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
+    
     Enemy enemy(randomType, startX, startY, initialEnemyPath);
-    // Optionally, slightly randomize base stats like health/speed here for initial diversity
-    // enemy.Mutate(0.1f); // Example: apply a small mutation for initial variety
+    enemy.Mutate(1.0f); // Full mutation for randomness
+    
     return enemy;
-} 
+}
+
+// Private helper: Ensure we have exactly 3 of each enemy type
+void GeneticAlgorithm::RebalanceEnemyTypes(std::vector<Enemy>& enemies) {
+    // Group enemies by type
+    std::vector<std::vector<Enemy>> enemiesByType(4);
+    
+    for (const Enemy& enemy : enemies) {
+        int typeIndex = static_cast<int>(enemy.GetType());
+        if (typeIndex >= 0 && typeIndex < 4) {
+            enemiesByType[typeIndex].push_back(enemy);
+        }
+    }
+    
+    enemies.clear();
+    
+    // Ensure exactly 3 of each type
+    EnemyType types[] = { EnemyType::OGRE, EnemyType::DARK_ELF, EnemyType::HARPY, EnemyType::MERCENARY };
+    
+    for (int i = 0; i < 4; ++i) {
+        std::vector<Enemy>& typeGroup = enemiesByType[i];
+        
+        if (typeGroup.size() >= 3) {
+            // Take the best 3
+            std::sort(typeGroup.begin(), typeGroup.end(),
+                      [](const Enemy& a, const Enemy& b) {
+                          return a.GetFitness() > b.GetFitness();
+                      });
+            for (int j = 0; j < 3; ++j) {
+                enemies.push_back(typeGroup[j]);
+            }
+        } else {
+            // Add what we have
+            for (const Enemy& enemy : typeGroup) {
+                enemies.push_back(enemy);
+            }
+            
+            // Fill missing slots with new random enemies of this type
+            int needed = 3 - static_cast<int>(typeGroup.size());
+            for (int j = 0; j < needed; ++j) {
+                float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
+                float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
+                
+                Enemy newEnemy(types[i], startX, startY, initialEnemyPath);
+                newEnemy.Mutate(1.0f);
+                enemies.push_back(newEnemy);
+            }
+        }
+    }
+}

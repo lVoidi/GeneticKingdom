@@ -43,5 +43,8 @@ private:
     std::vector<std::pair<int, int>> initialEnemyPath; 
 
     // Helper to generate a random enemy for initial population (if attributes are randomized initially)
-    Enemy CreateRandomEnemy(); 
+    Enemy CreateRandomEnemy() const;
+    
+    // Helper to ensure exactly 3 of each enemy type
+    void RebalanceEnemyTypes(std::vector<Enemy>& enemies);
 }; 

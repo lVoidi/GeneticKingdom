@@ -10,7 +10,7 @@
 #include <iomanip>
 
 Enemy::Enemy(EnemyType type, float startX, float startY, const std::vector<std::pair<int, int>>& initialPath)
-    : type(type), x(startX), y(startY), path(initialPath), currentPathIndex(0), isActive(true), fitness(0.0), timeAlive(0.0f), FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false), pEnemyImage(NULL) {
+    : type(type), x(startX), y(startY), path(initialPath), currentPathIndex(0), isActive(true), fitness(0.0), timeAlive(0.0f), FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false), pEnemyImage(NULL), pathJitter(0.0f), spawnDelay(0.0f), hasSpawned(true) {
     InitializeAttributes();
     health = maxHealth;
     if (!path.empty()) {
@@ -36,10 +36,13 @@ Enemy::Enemy(const Enemy& parent)
       resistanceArrow(parent.resistanceArrow),
       resistanceMagic(parent.resistanceMagic),
       resistanceArtillery(parent.resistanceArtillery),
+      pathJitter(parent.pathJitter),
       fitness(0.0),
       timeAlive(0.0f),
       FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false),
-      pEnemyImage(NULL)
+      pEnemyImage(NULL),
+      spawnDelay(parent.spawnDelay),
+      hasSpawned(parent.hasSpawned)
 {
     health = maxHealth;
     if (!path.empty()) {
@@ -110,6 +113,9 @@ void Enemy::InitializeAttributes() {
     }
     health = maxHealth;
     LoadImage(); // Load image after attributes are set
+    
+    // Initialize pathJitter to 0 (no randomness by default)
+    pathJitter = 0.0f;
 }
 
 void Enemy::UpdateTargetPosition() {
@@ -128,6 +134,12 @@ void Enemy::UpdateTargetPosition() {
 }
 
 void Enemy::Update(float deltaTime) {
+    if(!hasSpawned){
+        spawnDelay -= deltaTime;
+        if (spawnDelay > 0.0f) return;   // Aún no aparece
+        hasSpawned = true;               // Empieza a jugar
+    }
+
     std::wstringstream wss_upd;
     wss_upd << L"Enemy::Update - ID: " << std::hex << this 
             << L", Health: " << health 
@@ -174,12 +186,31 @@ void Enemy::Update(float deltaTime) {
     } else {
         float moveX = (dx / distance) * speed * deltaTime;
         float moveY = (dy / distance) * speed * deltaTime;
+        
+        // Apply path jitter for random movement deviation
+        if (pathJitter > 0.0f) {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<float> dis(-0.5f, 0.5f);
+            
+            // Calculate perpendicular direction for jitter
+            float perpendicularX = -dy / distance;  // 90-degree rotation
+            float perpendicularY = dx / distance;
+            
+            // Add random deviation perpendicular to the main direction
+            float jitterAmount = dis(gen) * pathJitter * speed * deltaTime * 0.5f;
+            moveX += perpendicularX * jitterAmount;
+            moveY += perpendicularY * jitterAmount;
+        }
+        
         x += moveX;
         y += moveY;
     }
 }
 
 void Enemy::Draw(HDC hdc) const {
+    if (!hasSpawned) return; // no lo dibujes antes de aparecer
+
     if (!isActive || !IsAlive()) {
         return;
     }
@@ -410,36 +441,70 @@ void Enemy::Mutate(float mutationRate) {
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
 
+    // Mutate health
     if (dis(gen) < mutationRate) {
         std::uniform_int_distribution<> health_change(-maxHealth / 10, maxHealth / 10);
         int newMaxHealth = getMaxFrom(10, maxHealth + health_change(gen)); 
         SetMaxHealth(newMaxHealth);
     }
 
+    // Mutate speed
     if (dis(gen) < mutationRate) {
         std::uniform_real_distribution<> speed_change_factor(0.9f, 1.1f);
         float newSpeed = getMaxFrom(5.0f, speed * speed_change_factor(gen)); 
         SetSpeed(newSpeed);
+    }
+    
+    // Mutate pathJitter
+    if (dis(gen) < mutationRate) {
+        std::uniform_real_distribution<float> jitter_dis(0.0f, 1.0f);
+        pathJitter = jitter_dis(gen);
+    }
+    
+    // Mutate resistances
+    if (dis(gen) < mutationRate) {
+        std::uniform_real_distribution<float> resistance_change(0.9f, 1.1f);
+        resistanceArrow = getMaxFrom(0.25f, getMinFrom(2.0f, resistanceArrow * resistance_change(gen)));
+    }
+    
+    if (dis(gen) < mutationRate) {
+        std::uniform_real_distribution<float> resistance_change(0.9f, 1.1f);
+        resistanceMagic = getMaxFrom(0.25f, getMinFrom(2.0f, resistanceMagic * resistance_change(gen)));
+    }
+    
+    if (dis(gen) < mutationRate) {
+        std::uniform_real_distribution<float> resistance_change(0.9f, 1.1f);
+        resistanceArtillery = getMaxFrom(0.25f, getMinFrom(2.0f, resistanceArtillery * resistance_change(gen)));
     }
 }
 
 void Enemy::ResetForNewWave(float startX, float startY, const std::vector<std::pair<int, int>>& newPath) {
     std::wstringstream wss_reset;
     wss_reset << L"Enemy::ResetForNewWave - ID: " << std::hex << this 
-              << L", OldHealth: " << health << L", OldIsActive: " << (isActive ? L"Yes" : L"No");
+              << L", Type: " << static_cast<int>(type)
+              << L", OldHealth: " << health << L"/" << maxHealth
+              << L", OldIsActive: " << (isActive ? L"Yes" : L"No")
+              << L", WasAlive: " << (health > 0 ? L"Yes" : L"No");
 
+    // Reset position and path
     x = startX;
     y = startY;
     path = newPath;
     currentPathIndex = 0;
+    
+    // Reset state for new wave - this represents a "new life" for the genetic algorithm
     isActive = true;
     health = maxHealth; // Reset to its current maxHealth (which might have been mutated)
     FUSION_ASSISTANT_SECRET_MARKER_reachedBridge = false;
     timeAlive = 0.0f;
     fitness = 0.0; // Reset fitness for the new wave
+    
+    // Note: pathJitter and other genetic traits are preserved as they represent DNA
 
-    wss_reset << L", NewHealth: " << health << L", NewIsActive: " << (isActive ? L"Yes" : L"No")
-              << L", NewX: " << x << L", NewY: " << y;
+    wss_reset << L" -> NewHealth: " << health << L"/" << maxHealth
+              << L", NewIsActive: " << (isActive ? L"Yes" : L"No")
+              << L", NewPos: (" << x << L", " << y << L")"
+              << L", SpawnDelay: " << spawnDelay;
     OutputDebugStringW((wss_reset.str() + L"\n").c_str());
 
     if (!path.empty()) {
@@ -523,4 +588,13 @@ bool Enemy::LoadImage() {
 
     OutputDebugStringW((L"Enemy::LoadImage - Failed to load image: " + fileName + L"\n").c_str());
     return false;
+}
+
+void Enemy::SetSpawnDelay(float d) {
+    spawnDelay = d;
+    hasSpawned = false;
+}
+
+bool Enemy::HasSpawned() const {
+    return hasSpawned;
 } 
