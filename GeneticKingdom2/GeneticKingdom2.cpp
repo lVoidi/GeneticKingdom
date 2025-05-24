@@ -1,53 +1,54 @@
-// GeneticKingdom2.cpp : Define el punto de entrada de la aplicación.
-
+// este archivo es el punto de entrada de la aplicacion, basicamente es el main xd
+// aqui esta toda la logica de la ventana y el bucle principal del juego
+// tambien maneja los eventos del mouse, teclado y el timer que actualiza todo
 
 #include "framework.h"
 #include "GeneticKingdom2.h"
 #include "Map.h"
 #include "Enemy.h"
 #include "GeneticAlgorithm.h"
-#include <windowsx.h> // Para GET_X_LPARAM, GET_Y_LPARAM
-#include <wingdi.h>   // Para funciones de GDI
-#include <objidl.h>   // Necesario para GDI+
-#include <gdiplus.h>  // Para GDI+
-#include <sstream>      // For std::wstringstream in logging
-#include <iomanip>      // For std::hex in logging
-#pragma comment(lib, "Msimg32.lib") // Para TransparentBlt
-#pragma comment(lib, "gdiplus.lib") // Para GDI+
+#include <windowsx.h> // para obtener coordenadas del mouse, porque windows es especial
+#include <wingdi.h>   // para dibujar cosas feas con gdi
+#include <objidl.h>   // necesario para gdi+, otro invento de windows
+#include <gdiplus.h>  // gdi+ porque el gdi normal es horrible
+#include <sstream>    // para debugear cuando todo explota
+#include <iomanip>    // para formatear numeros en hex, que elegancia
+#pragma comment(lib, "Msimg32.lib") // para transparencias, porque gdi no puede solo
+#pragma comment(lib, "gdiplus.lib") // para que gdi+ funcione, obvio
 
 using namespace Gdiplus;
 
 #define MAX_LOADSTRING 100
-#define TIMER_ID 1
-#define FPS 30 // Reducido de 60 a 30 fotogramas por segundo para una mejor interacción con los menús
+#define TIMER_ID 1  
+#define FPS 30 // bajado a 30 porque asi funciona mejor creo
 
-// GA Configuration Constants
-const int POPULATION_SIZE = 20;     // Example: Number of enemies per wave
-const float MUTATION_RATE = 0.1f;   // Example: 10% chance of mutation
-const float CROSSOVER_RATE = 0.7f;  // Example: 70% chance of crossover
+// configuracion del algoritmo genetico
+const int POPULATION_SIZE = 20;     // cuantos enemigos por oleada
+const float MUTATION_RATE = 0.1f;   // probabilidad de que muten
+const float CROSSOVER_RATE = 0.7f;  // probabilidad de que se reproduzcan
 
-// Variables globales:
-HINSTANCE hInst;                                // instancia actual
-WCHAR szTitle[MAX_LOADSTRING];                  // Texto de la barra de título
-WCHAR szWindowClass[MAX_LOADSTRING];            // nombre de clase de la ventana principal
-HBRUSH g_hBackgroundBrush = NULL;               // Pincel para el color de fondo
+// variables globales porque yolo
+HINSTANCE hInst;                                // la instancia de windows
+WCHAR szTitle[MAX_LOADSTRING];                  // titulo de la ventana
+WCHAR szWindowClass[MAX_LOADSTRING];            // nombre de la clase de la ventana
+HBRUSH g_hBackgroundBrush = NULL;               // pincel para el fondo
 Gdiplus::GdiplusStartupInput g_gdiplusStartupInput;
 ULONG_PTR g_gdiplusToken;
-Map gameMap;                                    // Instancia del mapa del juego
-bool g_showConstructionInfo = false;            // Mostrar información de construcción
-int g_selectedRow = -1;                         // Fila seleccionada para construcción
-int g_selectedCol = -1;                         // Columna seleccionada para construcción
-DWORD g_lastUpdateTime = 0;                     // Último tiempo de actualización
-bool g_gamePaused = false;                      // Indica si el juego está pausado
-RECT g_menuRect = { 0 };                        // Rect del menú actual
-// Genetic Algorithm and Enemies
-GeneticAlgorithm* g_pGeneticAlgorithm = nullptr; // Pointer to allow deferred construction
+Map gameMap;                                    // el mapa del juego
+bool g_showConstructionInfo = false;            // mostrar menu de construccion
+int g_selectedRow = -1;                         // fila seleccionada
+int g_selectedCol = -1;                         // columna seleccionada
+DWORD g_lastUpdateTime = 0;                     // tiempo del ultimo update
+bool g_gamePaused = false;                      // si esta pausado
+RECT g_menuRect = { 0 };                        // rectangulo del menu
+// cosas del algoritmo genetico
+GeneticAlgorithm* g_pGeneticAlgorithm = nullptr; // puntero al algoritmo genetico
 std::vector<Enemy> g_currentWaveEnemies;
 int g_currentWaveNumber = 0;
-float g_timeSinceWaveEnd = 0.0f; // Time since the current wave ended
-const float WAVE_DELAY = 3.0f; // Delay between waves in seconds
+float g_timeSinceWaveEnd = 0.0f; // tiempo desde que termino la oleada
+const float WAVE_DELAY = 3.0f; // tiempo entre oleadas
 
-// Declaraciones de funciones adelantadas incluidas en este módulo de código:
+// funciones que vienen despues
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -61,41 +62,25 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
-    /*
-        APIENTRY: Es una macro que define el punto de entrada de la aplicación. 
-        wWinMain: Es la función principal de la aplicación.
-        _In_ HINSTANCE hInstance: Es el identificador de la instancia de la aplicación.
-        _In_opt_ HINSTANCE hPrevInstance: Es el identificador de la instancia anterior de la aplicación.
-        _In_ LPWSTR    lpCmdLine: Es la línea de comandos de la aplicación.
-        _In_ int       nCmdShow: Es el modo en que se mostrará la ventana principal de la aplicación.
-    */
-
-    // Evita warnings del compilador
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // Inicializar GDI+
     Status status = GdiplusStartup(&g_gdiplusToken, &g_gdiplusStartupInput, NULL);
     if (status != Ok) {
         MessageBoxW(NULL, L"Error al inicializar GDI+", L"Error", MB_OK | MB_ICONERROR);
         return FALSE;
     }
 
-    // Inicializar la semilla para números aleatorios
     srand(static_cast<unsigned int>(time(NULL)));
 
-    // Crear el pincel de color verde para el fondo (#0e813c)
-    g_hBackgroundBrush = CreateSolidBrush(RGB(14, 129, 60)); // RGB valores para #0e813c
+    g_hBackgroundBrush = CreateSolidBrush(RGB(14, 129, 60));
 
-    // Inicializar cadenas globales
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_GENETICKINGDOM2, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
-    // Realizar la inicialización de la aplicación:
     if (!InitInstance (hInstance, nCmdShow))
     {
-        // Limpieza si falla la inicialización
         if (g_hBackgroundBrush) {
             DeleteObject(g_hBackgroundBrush);
         }
@@ -105,20 +90,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GENETICKINGDOM2));
 
-
-    // Esto es lo que windows usa para recibir mensajes de la ventana principal, como inputs, etc
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0))
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
         {
             TranslateMessage(&msg);
-            // Esto es lo que envia mensajes a la ventana principal
             DispatchMessage(&msg);
         }
     }
 
-    // Liberar recursos
     if (g_pGeneticAlgorithm) {
         delete g_pGeneticAlgorithm;
         g_pGeneticAlgorithm = nullptr;
@@ -128,23 +109,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         g_hBackgroundBrush = NULL;
     }
     
-    // Cerrar GDI+
     GdiplusShutdown(g_gdiplusToken);
 
     return (int) msg.wParam;
 }
 
-
-
-//
-//  FUNCIÓN: MyRegisterClass()
-//
-//  PROPÓSITO: Registra la clase de ventana.
-//
-//  ATOM: Es una macro que define el tipo de dato para las clases de ventanas.
-//  HINSTANCE: Es el identificador de la instancia de la aplicación.
-//  MyRegisterClass: Es el nombre de la función que registra la clase de ventana.
-//
+// registra la clase de la ventana, nada interesante que ver aqui
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
     WNDCLASSEXW wcex;
@@ -158,24 +128,16 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_GENETICKINGDOM2));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = g_hBackgroundBrush;  // Usar el pincel de color verde
-    wcex.lpszMenuName   = NULL; // Eliminar el menú
+    wcex.hbrBackground  = g_hBackgroundBrush;  
+    wcex.lpszMenuName   = NULL; 
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
     return RegisterClassExW(&wcex);
 }
 
-//
-//   FUNCIÓN: InitInstance(HINSTANCE, int)
-//
-//   PROPÓSITO: Guarda el identificador de instancia y crea la ventana principal
-//
-//   COMENTARIOS:
-//
-//        En esta función, se guarda el identificador de instancia en una variable común y
-//        se crea y muestra la ventana principal del programa.
-//
+// inicializa la ventana y todo lo demas
+// si esto falla nada funciona xd
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; 
@@ -185,13 +147,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    gameMap.Initialize(screenWidth, screenHeight);
 
-   // Initialize Genetic Algorithm
-   // Assuming GetEntryPoint() and GetBridgeGridLocation() are available in Map class
-   // For now, using common assumptions for entry point.
    std::pair<int, int> entryPoint = { gameMap.GetNumRows() / 2, 0 }; 
    std::pair<int, int> bridgeLocation = gameMap.GetBridgeGridLocation(); 
    
-   if (g_pGeneticAlgorithm) delete g_pGeneticAlgorithm; // Should be null here, but good practice
+   if (g_pGeneticAlgorithm) delete g_pGeneticAlgorithm;
    g_pGeneticAlgorithm = new GeneticAlgorithm(POPULATION_SIZE, MUTATION_RATE, CROSSOVER_RATE, entryPoint, bridgeLocation, &gameMap);
    g_pGeneticAlgorithm->InitializePopulation();
    g_currentWaveEnemies = g_pGeneticAlgorithm->GetCurrentPopulation();
@@ -200,7 +159,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    HWND hWnd = CreateWindowW(
        szWindowClass, 
        szTitle, 
-       WS_POPUP, // Sólo WS_POPUP para una ventana sin bordes, menús o decoraciones
+       WS_POPUP,
        0, 0, 
        screenWidth, screenHeight, 
        NULL, NULL, 
@@ -213,7 +172,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
-   // Forzar el modo de pantalla completa
    SetWindowPos(
        hWnd,
        HWND_TOP,
@@ -222,41 +180,28 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
        SWP_FRAMECHANGED
    );
 
-   // Establecer temporizadores:
-   // Uno para la lógica del juego
    SetTimer(hWnd, TIMER_ID, 1000 / FPS, NULL);
    
    g_lastUpdateTime = GetTickCount();
 
-   ShowWindow(hWnd, SW_SHOWMAXIMIZED); // Usar SW_SHOWMAXIMIZED para asegurar pantalla completa
+   ShowWindow(hWnd, SW_SHOWMAXIMIZED);
    UpdateWindow(hWnd);
 
    return TRUE;
 }
 
-//
-//  FUNCIÓN: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PROPÓSITO: Procesa mensajes de la ventana principal.
-//
-//  WM_COMMAND  - procesar el menú de aplicaciones
-//  WM_PAINT    - Pintar la ventana principal
-//  WM_DESTROY  - publicar un mensaje de salida y volver
-//
-//
+// procesa todos los mensajes de windows
+// es como un switch gigante que maneja todo lo que pasa en la ventana
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
     case WM_CREATE:
-        // Inicialización de GDI+
         Gdiplus::GdiplusStartup(&g_gdiplusToken, &g_gdiplusStartupInput, NULL);
-        // Aquí puedes inicializar otros elementos si es necesario
         break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
-            // Analizar las selecciones de menú:
             switch (wmId)
             {
             case IDM_ABOUT:
@@ -281,17 +226,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             HBITMAP hbmMem = CreateCompatibleBitmap(hdc, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
             HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
 
-            HBRUSH hbrBackground = CreateSolidBrush(RGB(14, 129, 60)); // Verde #0e813c
+            HBRUSH hbrBackground = CreateSolidBrush(RGB(14, 129, 60));
             FillRect(hdcMem, &clientRect, hbrBackground);
             DeleteObject(hbrBackground);
 
-            // DIBUJAR EL MAPA Y TODOS SUS COMPONENTES EN EL BACK BUFFER
             gameMap.Draw(hdcMem); 
 
             std::wstringstream wss_paint;
             wss_paint << L"WM_PAINT - Drawing enemies (Wave " << g_currentWaveNumber << L") - Count: " << g_currentWaveEnemies.size() << L"\n";
             for (size_t i = 0; i < g_currentWaveEnemies.size(); ++i) {
-                const Enemy& enemy_to_draw = g_currentWaveEnemies[i]; // Use a different variable name
+                const Enemy& enemy_to_draw = g_currentWaveEnemies[i];
                 wss_paint << L"  Draw Enemy[" << i << L"] ID: " << std::hex << &enemy_to_draw
                           << L", Health: " << enemy_to_draw.GetHealth() << L"/" << enemy_to_draw.GetMaxHealth()
                           << L", IsActive: " << (enemy_to_draw.IsActive() ? L"Yes" : L"No")
@@ -300,8 +244,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             OutputDebugStringW(wss_paint.str().c_str());
 
-            // Dibujar enemigos de la oleada actual
-            for (const Enemy& enemy_to_draw_loop : g_currentWaveEnemies) { // Use a different variable name
+            for (const Enemy& enemy_to_draw_loop : g_currentWaveEnemies) {
                 enemy_to_draw_loop.Draw(hdcMem);
             }
 
@@ -327,7 +270,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             DestroyWindow(hWnd);
         }
-        else if (wParam == 'M') // Tecla M para añadir oro (para pruebas)
+        else if (wParam == 'M')
         {
             gameMap.GetEconomy().AddGold(100);
             InvalidateRect(hWnd, NULL, FALSE);
@@ -339,7 +282,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (wParam == TIMER_ID) {
             DWORD currentTime = GetTickCount();
             float deltaTime = (currentTime - g_lastUpdateTime) / 1000.0f;
-            // Limitar deltaTime a un máximo para evitar saltos grandes si hay lag o pausas
             if (deltaTime > 0.1f) deltaTime = 0.1f;
             g_lastUpdateTime = currentTime;
             
@@ -351,9 +293,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         break;
     case WM_DESTROY:
-        // Finalización de GDI+
         Gdiplus::GdiplusShutdown(g_gdiplusToken);
-        KillTimer(hWnd, TIMER_ID); // Detener el timer al destruir la ventana
+        KillTimer(hWnd, TIMER_ID);
         PostQuitMessage(0);
         break;
     default:
@@ -362,7 +303,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-// Controlador de mensajes del cuadro Acerca de.
+// maneja el dialogo de "acerca de"
+// nadie lo usa pero ahi esta xd
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
@@ -382,27 +324,23 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     return (INT_PTR)FALSE;
 }
 
-// Maneja el clic del mouse para seleccionar un punto de construcción
+// maneja los clicks del mouse
+// basicamente le dice al mapa "oye, clickearon aqui"
 void HandleMouseClick(HWND hWnd, int x, int y) {
-    // Utilizar el nuevo método HandleClick del mapa
     gameMap.HandleClick(x, y);
-    
-    // Forzar repintado para mostrar/ocultar información o menús
     InvalidateRect(hWnd, NULL, FALSE);
 }
 
-// Dibuja información sobre el punto de construcción seleccionado
+// dibuja info de construccion
+// ya no se usa pero lo dejamos por si acaso :V
 void DrawConstructionInfo(HDC hdc, int row, int col) {
-    // Esta función ya no se usa directamente, el menú de construcción
-    // se maneja dentro de Map::Draw a través de DrawConstructionMenu
 }
 
-// Actualiza el juego con el tiempo transcurrido
+// actualiza todo el juego
+// esto es el cerebro del juego, si falla todo se rompe xd
 void UpdateGame(float deltaTime) {
-    // Actualizar la lógica del mapa (torres, proyectiles)
-    gameMap.Update(deltaTime, g_currentWaveEnemies); // Pass current wave to map update
+    gameMap.Update(deltaTime, g_currentWaveEnemies);
 
-    // Actualizar enemigos
     bool anyActiveEnemies = false;
     bool anyUnspawnedEnemies = false;
     int aliveEnemies = 0;
@@ -424,10 +362,8 @@ void UpdateGame(float deltaTime) {
                     << L", IsAlive: " << (wasAlive ? L"Yes" : L"No")
                     << L", HasSpawned: " << (hasSpawned ? L"Yes" : L"No");
         
-        // Always call Update() to handle spawn delays and movement
         enemy.Update(deltaTime);
         
-        // Check status after update (might have changed)
         bool isActiveAfter = enemy.IsActive();
         bool isAliveAfter = enemy.IsAlive();
         bool hasSpawnedAfter = enemy.HasSpawned();
@@ -454,7 +390,6 @@ void UpdateGame(float deltaTime) {
                 << L", Alive: " << aliveEnemies << L", Dead: " << deadEnemies << L", ReachedBridge: " << reachedBridge;
     OutputDebugStringW(wss_ug_loop.str().c_str());
 
-    // Wave end and GA logic
     bool waveIsOver = !anyActiveEnemies && !anyUnspawnedEnemies;
     
     if (waveIsOver) {
@@ -466,7 +401,6 @@ void UpdateGame(float deltaTime) {
             wss_ga_start << L"  Final stats - Alive: " << aliveEnemies << L", Dead: " << deadEnemies << L", ReachedBridge: " << reachedBridge << L"\n";
             OutputDebugStringW(wss_ga_start.str().c_str());
             
-            // Calculate fitness for all enemies
             std::pair<int, int> bridgeGridLoc = gameMap.GetBridgeGridLocation();
             float mapPixelWidth = gameMap.GetMapPixelWidth();
             float mapPixelHeight = gameMap.GetMapPixelHeight();
@@ -476,22 +410,20 @@ void UpdateGame(float deltaTime) {
                                        enemy.GetTimeAlive(), enemy.HasReachedBridge());
             }
 
-            // Evaluate fitness and select parents
             g_pGeneticAlgorithm->SetCurrentPopulation(g_currentWaveEnemies);
-            g_pGeneticAlgorithm->EvaluateFitness(0.0f, reachedBridge > 0); // timeSurvivedByWave can be 0, we use individual timeAlive
+            g_pGeneticAlgorithm->EvaluateFitness(0.0f, reachedBridge > 0);
             g_pGeneticAlgorithm->SelectParents();
             g_pGeneticAlgorithm->CrossoverAndMutate();
             
-            // Generate new wave
             g_currentWaveEnemies = g_pGeneticAlgorithm->GenerateNewGeneration();
             g_currentWaveNumber++;
-            g_timeSinceWaveEnd = 0.0f; // Reset the timer
+            g_timeSinceWaveEnd = 0.0f;
             
             std::wstringstream wss_ga_post_gen;
             wss_ga_post_gen << L"UpdateGame: New wave " << g_currentWaveNumber << L" generated with " << g_currentWaveEnemies.size() << L" enemies.\n";
             OutputDebugStringW(wss_ga_post_gen.str().c_str());
         }
     } else {
-        g_timeSinceWaveEnd = 0.0f; // Reset timer if wave is not over yet
+        g_timeSinceWaveEnd = 0.0f;
     }
 }

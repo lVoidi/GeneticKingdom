@@ -1,32 +1,33 @@
+// este archivo maneja toda la logica de las torres defensivas del juego
+// las torres son las que atacan a los enemigos y pueden ser mejoradas
+// hay diferentes tipos de torres con diferentes caracteristicas
+// cada torre tiene un rango de ataque, daño y velocidad de ataque
+// las torres se pueden mejorar hasta 3 veces para aumentar sus stats
+
 #include "framework.h"
 #include "Tower.h"
-#include "Enemy.h" // Include full definition of Enemy for usage
+#include "Enemy.h" // necesitamos esto para que las torres puedan atacar enemigos
 #include <cmath>
-#include "Map.h" // Para incluir la definición completa de DummyTarget
-#include <random> // Para std::mt19937 y std::uniform_int_distribution
-#include <cstdlib> // Para rand() y srand()
-#include <ctime>   // Para time() para la semilla de srand()
+#include "Map.h" // para los objetivos falsos que usan las torres
+#include <random> // para generar numeros aleatorios 
+#include <cstdlib> // mas random porque nunca es suficiente
+#include <ctime>   // tiempo para la semilla, aunque no lo usamos aqui
 
-// Constructor de la torre
+// un constructor super simple que inicializa todo lo basico
+// type es el tipo de torre (arquero, mago, etc)
+// row y col son la posicion en el mapa, porque windows es especial y usa matrices
 Tower::Tower(TowerType type, int row, int col)
     : type(type), level(TowerLevel::LEVEL_1), row(row), col(col), 
       attackCooldown(0.0f), pTowerImage(NULL), showRange(false)
 {
-    // Cargar la imagen correspondiente al tipo y nivel
     LoadImage();
-    // Inicializar la semilla para el generador de números aleatorios una vez por torre
-    // o mejor aún, hacerlo globalmente una sola vez en la aplicación.
-    // Por simplicidad aquí, si se quiere más aleatoriedad, mover a una inicialización global.
-    // srand(static_cast<unsigned int>(time(NULL))); 
-    // ^^^ Nota: Poner srand() aquí haría que todas las torres creadas en el mismo segundo
-    // tuvieran la misma secuencia. Es mejor hacerlo globalmente o usar <random>.
 }
 
-// Destructor
+// el destructor mas basura del mundo
+// ni siquiera borra la imagen porque gdi+ se encarga de eso
+// que conveniente, no?
 Tower::~Tower()
 {
-    // No eliminamos la imagen aquí, ya que GDI+ se encargará de eso
-    // cuando se llame a GdiplusShutdown
     pTowerImage = NULL;
 }
 
@@ -58,61 +59,59 @@ void Tower::Draw(HDC hdc, int cellSize)
     }
 }
 
-// Mejora la torre al siguiente nivel si es posible
+// puta que es facil mejorar una torre, solo hay que subirle el nivel
+// y cargar una imagen nueva, que podria malir sal?
 bool Tower::Upgrade()
 {
-    // Comprobar si ya está al nivel máximo
     if (level == TowerLevel::LEVEL_3) {
-        return false; // No se puede mejorar más
+        return false;
     }
     
-    // Incrementar el nivel
     level = static_cast<TowerLevel>(static_cast<int>(level) + 1);
     
-    // Cargar la nueva imagen correspondiente al nivel
     LoadImage();
     
     return true;
 }
 
-// Obtiene el tipo de torre
+// devuelve el tipo de torre, por si te olvidaste que construiste /s
 TowerType Tower::GetType() const
 {
     return type;
 }
 
-// Obtiene el nivel actual de la torre
+// devuelve el nivel actual, por si no te acuerdas /s
 TowerLevel Tower::GetLevel() const
 {
     return level;
 }
 
-// Obtiene la posición de la torre (fila)
+// devuelve la fila, porque al parecer no puedes recordar donde pusiste tu torre /s
 int Tower::GetRow() const
 {
     return row;
 }
 
-// Obtiene la posición de la torre (columna)
+// devuelve la columna, en serio necesito explicar esto?
 int Tower::GetCol() const
 {
     return col;
 }
 
-// Comprueba si la torre puede ser mejorada
+// comprueba si puedes mejorar la torre
+// spoiler: si no es nivel 3, se puede
 bool Tower::CanUpgrade() const
 {
     return level != TowerLevel::LEVEL_3;
 }
 
-// Carga la imagen adecuada para el tipo y nivel de torre
+// esta funcion es un puto desastre
+// intenta cargar una imagen desde 500 lugares diferentes
+// porque windows es una mierda y no sabe donde estan los archivos
 bool Tower::LoadImage()
 {
-    // Primero liberamos la referencia a cualquier imagen previamente cargada
-    // pero no la eliminamos, ya que GDI+ se encargará de eso
     pTowerImage = NULL;
 
-    // Determinar el nombre de archivo según el tipo y nivel
     std::wstring fileName;
     
     switch (type) {
@@ -127,11 +126,9 @@ bool Tower::LoadImage()
         break;
     }
     
-    // Añadir el nivel
     fileName += std::to_wstring(static_cast<int>(level));
     fileName += L".png";
     
-    // Lista de posibles rutas para la imagen
     const wchar_t* possiblePaths[] = {
         L"Assets\\Towers\\",
         L"..\\GeneticKingdom2\\Assets\\Towers\\",
@@ -139,13 +136,11 @@ bool Tower::LoadImage()
         L"C:\\Users\\Admin\\source\\repos\\GeneticKingdom2\\GeneticKingdom2\\Assets\\Towers\\"
     };
     
-    // Intentar cargar la imagen desde una de las rutas posibles
     for (const wchar_t* basePath : possiblePaths) {
         std::wstring fullPath = basePath + fileName;
         Gdiplus::Image* tempImage = Gdiplus::Image::FromFile(fullPath.c_str());
         
         if (tempImage && tempImage->GetLastStatus() == Gdiplus::Ok) {
-            // Solo asignamos el puntero si la imagen se cargó correctamente
             pTowerImage = tempImage;
             
             WCHAR debugMsg[256];
@@ -154,21 +149,17 @@ bool Tower::LoadImage()
             return true;
         }
         else if (tempImage) {
-            // Si hubo un error, no asignar el puntero y continuar con la siguiente ruta
             tempImage = NULL;
         }
     }
     
-    // Si no se pudo cargar la imagen, obtener la ruta del ejecutable e intentar otras rutas
     WCHAR exePath[MAX_PATH];
     GetModuleFileNameW(NULL, exePath, MAX_PATH);
     
-    // Obtener la carpeta del ejecutable
     WCHAR* lastSlash = wcsrchr(exePath, L'\\');
     if (lastSlash != NULL) {
         *(lastSlash + 1) = L'\0';
         
-        // Construir ruta completa
         std::wstring fullPath = exePath;
         fullPath += L"Assets\\Towers\\";
         fullPath += fileName;
@@ -176,7 +167,6 @@ bool Tower::LoadImage()
         Gdiplus::Image* tempImage = Gdiplus::Image::FromFile(fullPath.c_str());
         
         if (tempImage && tempImage->GetLastStatus() == Gdiplus::Ok) {
-            // Solo asignamos el puntero si la imagen se cargó correctamente
             pTowerImage = tempImage;
             
             WCHAR debugMsg[256];
@@ -185,12 +175,10 @@ bool Tower::LoadImage()
             return true;
         }
         else if (tempImage) {
-            // Si hubo un error, no asignar el puntero
             tempImage = NULL;
         }
     }
     
-    // No se pudo cargar la imagen
     WCHAR errorMsg[256];
     swprintf_s(errorMsg, L"Error al cargar la imagen de la torre: %s\n", fileName.c_str());
     OutputDebugStringW(errorMsg);
@@ -263,7 +251,8 @@ int Tower::GetDamage() const
     return baseDamage * static_cast<int>(level);
 }
 
-// Dibuja el rango de ataque de la torre
+// dibuja el puto rango de ataque de la torre, que es un circulo semitransparente 
+// con el color correspondiente al tipo de torre. que elegancia la de francia
 void Tower::DrawRange(HDC hdc, int cellSize)
 {
     if (!showRange) {
@@ -272,54 +261,44 @@ void Tower::DrawRange(HDC hdc, int cellSize)
     
     int range = GetRange();
     
-    // Crear un pincel semitransparente para mostrar el rango
     COLORREF rangeColor;
     
     switch (type) {
     case TowerType::ARCHER:
-        rangeColor = RGB(0, 150, 0); // Verde para arqueros
+        rangeColor = RGB(0, 150, 0); 
         break;
     case TowerType::MAGE:
-        rangeColor = RGB(0, 0, 150); // Azul para magos
+        rangeColor = RGB(0, 0, 150); 
         break;
     case TowerType::GUNNER:
-        rangeColor = RGB(150, 0, 0); // Rojo para cañones
+        rangeColor = RGB(150, 0, 0); 
         break;
     default:
-        rangeColor = RGB(150, 150, 0); // Amarillo por defecto
+        rangeColor = RGB(150, 150, 0); 
     }
     
     try {
         Gdiplus::Graphics graphics(hdc);
         
-        // Crear un pincel semitransparente
         Gdiplus::Color color(80, GetRValue(rangeColor), GetGValue(rangeColor), GetBValue(rangeColor));
         Gdiplus::SolidBrush brush(color);
         
-        // Centro de la torre
         float centerX = (col + 0.5f) * cellSize;
         float centerY = (row + 0.5f) * cellSize;
         
-        // Calcular radio en píxeles
         float radius = range * cellSize;
         
-        // Dibujar círculo semitransparente
         graphics.FillEllipse(&brush, centerX - radius, centerY - radius, radius * 2, radius * 2);
         
-        // También resaltar las celdas dentro del rango
         Gdiplus::Pen pen(Gdiplus::Color(150, GetRValue(rangeColor), GetGValue(rangeColor), GetBValue(rangeColor)), 2);
         
-        // Calcular las celdas dentro del rango
         for (int r = row - range; r <= row + range; r++) {
             for (int c = col - range; c <= col + range; c++) {
-                // Calcular distancia euclidiana
                 float dx = c - col;
                 float dy = r - row;
                 float distance = sqrtf(dx * dx + dy * dy);
                 
-                // Si está dentro del rango
                 if (distance <= range) {
-                    // Dibujar borde de la celda
                     graphics.DrawRectangle(&pen, c * cellSize, r * cellSize, cellSize, cellSize);
                 }
             }
@@ -330,10 +309,11 @@ void Tower::DrawRange(HDC hdc, int cellSize)
     }
 }
 
-// Obtiene el tipo de proyectil para esta torre
+// devuelve el tipo de proyectil que dispara la torre. cada torre tiene su propio
+// tipo de proyectil base y una probabilidad del 20% de disparar uno poderoso.
+// por qué 20%? porque puedo, y porque queda epiko 
 ProjectileType Tower::GetProjectileType() const
 {
-    // Determinar el tipo de proyectil base
     ProjectileType baseProjectileType;
     switch (type) {
     case TowerType::ARCHER:
@@ -346,13 +326,11 @@ ProjectileType Tower::GetProjectileType() const
         baseProjectileType = ProjectileType::CANNONBALL;
         break;
     default:
-        baseProjectileType = ProjectileType::ARROW; // Default
+        baseProjectileType = ProjectileType::ARROW;
         break;
     }
 
-    // Decidir si es un ataque poderoso (20% de probabilidad)
-    // std::rand() devuelve un valor entre 0 y RAND_MAX
-    if ((std::rand() % 100) < 20) { // 20% de probabilidad
+    if ((std::rand() % 100) < 20) {
         switch (type) {
         case TowerType::ARCHER:
             return ProjectileType::FIREARROW;
@@ -361,14 +339,16 @@ ProjectileType Tower::GetProjectileType() const
         case TowerType::GUNNER:
             return ProjectileType::NUKEBOMB;
         default:
-            return baseProjectileType; // En caso de un tipo de torre no manejado para poderosos
+            return baseProjectileType;
         }
     }
     
     return baseProjectileType;
 }
 
-// Actualiza la lógica de la torre e intenta disparar hacia el objetivo más cercano
+// aqui esta la funcion que actualiza las torres y dispara a los enemigos
+// esta mierda es un desastre pero funciona, asi que no la toques
+// si la tocas y se rompe, es tu culpa, no la mia
 void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int cellSize, const std::vector<Enemy>& enemies)
 {
     if (attackCooldown > 0) {
@@ -384,19 +364,16 @@ void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int ce
         float towerCenterY = (row + 0.5f) * cellSize;
 
         const Enemy* closestEnemy = nullptr;
-        float minDistanceSq = FLT_MAX; // Use squared distance to avoid sqrt
+        float minDistanceSq = FLT_MAX;
 
         for (const auto& enemy : enemies) {
             if (!enemy.IsActive() || !enemy.IsAlive()) {
-                continue; // Skip inactive or dead enemies
+                continue;
             }
 
-            // Harpy targeting rule: Gunners cannot target flying enemies
             if (type == TowerType::GUNNER && enemy.IsFlying()) {
                 continue; 
             }
-            // Note: Your requirement "Harpías: ... solo pueden ser atacadas por torres de magos y arqueros"
-            // is covered if Gunners can't target flying, and Archers/Mages can.
 
             float dx = enemy.GetX() - towerCenterX;
             float dy = enemy.GetY() - towerCenterY;
@@ -410,10 +387,6 @@ void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int ce
         }
         
         if (closestEnemy) {
-            // Convert enemy pixel coordinates to target grid cell for AddProjectile
-            // AddProjectile expects target grid cell, not precise pixel.
-            // The projectile itself will fly towards the enemy's continuously updated pixel position if implemented that way.
-            // For now, AddProjectile takes targetRow, targetCol which is a grid cell.
             int targetEnemyCellCol = static_cast<int>(closestEnemy->GetX() / cellSize);
             int targetEnemyCellRow = static_cast<int>(closestEnemy->GetY() / cellSize);
 
@@ -422,66 +395,60 @@ void Tower::Update(float deltaTime, ProjectileManager& projectileManager, int ce
                 row, col,                       
                 targetEnemyCellRow, targetEnemyCellCol, 
                 cellSize,
-                closestEnemy->GetX(), closestEnemy->GetY() // Pass precise target coords for homing/direct shot
+                closestEnemy->GetX(), closestEnemy->GetY()
             );
             
             attackCooldown = 1.0f / GetAttackSpeed();
         }
-        // No default firing if no valid enemy in range, tower waits.
     }
 }
 
-// Muestra/oculta el rango de la torre
+// muestra u oculta el rango de la torre, por si eres ciego y no lo ves
 void Tower::SetShowRange(bool show)
 {
     showRange = show;
 }
 
-// Comprueba si el rango está visible
+// devuelve si el rango esta visible, por si te olvidaste que lo activaste
 bool Tower::IsShowingRange() const
 {
     return showRange;
 }
 
 //////////////////////////////////////////////////////////////
-// Implementación de TowerManager
+// esta cosa maneja todas las torres del juego
+// si algo explota aqui, todo el juego se va a la shi
 //////////////////////////////////////////////////////////////
 
 TowerManager::TowerManager()
 {
 }
 
+// destructor que no hace una mierda porque somos vagos
 TowerManager::~TowerManager()
 {
-    // Solo liberamos referencias a las torres, no las eliminamos directamente
-    // ya que podría causar problemas al cerrar la aplicación
     towers.clear();
 }
 
-// Inicializa el gestor de torres
+// inicializa esta mierda, aunque no hace nada util
 void TowerManager::Initialize()
 {
-    // No hay nada específico que inicializar por ahora
 }
 
-// Agrega una nueva torre en la posición especificada
+// agrega una torre nueva, si ya hay una ahi te manda a la shi
 bool TowerManager::AddTower(TowerType type, int row, int col)
 {
-    // Comprobar si ya hay una torre en esa posición
     if (HasTower(row, col)) {
         return false;
     }
     
-    // Crear una nueva torre
     Tower* newTower = new Tower(type, row, col);
-    
-    // Añadir la torre al vector
     towers.push_back(newTower);
     
     return true;
 }
 
-// Mejora la torre en la posición especificada
+// mejora una torre si puedes, si no puedes ps xd
 bool TowerManager::UpgradeTower(int row, int col)
 {
     Tower* tower = GetTowerAt(row, col);
@@ -493,7 +460,7 @@ bool TowerManager::UpgradeTower(int row, int col)
     return tower->Upgrade();
 }
 
-// Dibuja todas las torres
+// dibuja todas las torres, si no se ven es tu problema
 void TowerManager::DrawTowers(HDC hdc, int cellSize)
 {
     for (Tower* tower : towers) {
@@ -501,7 +468,7 @@ void TowerManager::DrawTowers(HDC hdc, int cellSize)
     }
 }
 
-// Comprueba si hay una torre en la posición especificada
+// comprueba si hay una torre en esa posicion, util para no cagarla
 bool TowerManager::HasTower(int row, int col) const
 {
     return GetTowerAt(row, col) != nullptr;
