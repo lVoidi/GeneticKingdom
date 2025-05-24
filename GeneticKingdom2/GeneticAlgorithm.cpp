@@ -60,6 +60,12 @@ void GeneticAlgorithm::InitializePopulation() {
             // Apply heavy mutation for initial diversity
             enemy.Mutate(1.0f); // 100% mutation rate for initial population
             
+            // Ensure each enemy has unique path jitter for movement variety
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<float> jitterDist(0.2f, 0.5f);
+            enemy.SetPathJitter(jitterDist(gen));
+            
             // Set spawn delay to space out enemies (each enemy spawns 1 second after the previous)
             float spawnDelay = static_cast<float>(population.size()) * 1.0f;
             enemy.SetSpawnDelay(spawnDelay);

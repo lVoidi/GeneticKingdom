@@ -114,8 +114,11 @@ void Enemy::InitializeAttributes() {
     health = maxHealth;
     LoadImage(); // Load image after attributes are set
     
-    // Initialize pathJitter to 0 (no randomness by default)
-    pathJitter = 0.0f;
+    // Initialize pathJitter with some randomness for varied movement
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> jitterDist(0.1f, 0.4f);
+    pathJitter = jitterDist(gen);
 }
 
 void Enemy::UpdateTargetPosition() {
@@ -191,16 +194,22 @@ void Enemy::Update(float deltaTime) {
         if (pathJitter > 0.0f) {
             std::random_device rd;
             std::mt19937 gen(rd());
-            std::uniform_real_distribution<float> dis(-0.5f, 0.5f);
+            std::uniform_real_distribution<float> dis(-1.0f, 1.0f);
             
             // Calculate perpendicular direction for jitter
             float perpendicularX = -dy / distance;  // 90-degree rotation
             float perpendicularY = dx / distance;
             
             // Add random deviation perpendicular to the main direction
-            float jitterAmount = dis(gen) * pathJitter * speed * deltaTime * 0.5f;
+            // Increased jitter effect for more visible randomness
+            float jitterAmount = dis(gen) * pathJitter * speed * deltaTime * 1.5f;
             moveX += perpendicularX * jitterAmount;
             moveY += perpendicularY * jitterAmount;
+            
+            // Also add some forward/backward randomness for more organic movement
+            float forwardJitter = dis(gen) * pathJitter * speed * deltaTime * 0.3f;
+            moveX += (dx / distance) * forwardJitter;
+            moveY += (dy / distance) * forwardJitter;
         }
         
         x += moveX;
@@ -265,18 +274,23 @@ void Enemy::Draw(HDC hdc) const {
     }
 
     // Draw health bar (adjust position based on image size if necessary)
-    if (health < maxHealth) {
+    if (IsAlive() && hasSpawned) { 
         int barWidth = CELL_SIZE * 0.75f; // Match enemy draw width
         int barHeight = 5;
         // Position health bar above the enemy image
         int barX = static_cast<int>(x - barWidth / 2.0f);
         int barY = static_cast<int>(y - (CELL_SIZE * 0.75f) / 2.0f - barHeight - 2); 
 
-        // Background of health bar (red)
-        HBRUSH hRedBrush = CreateSolidBrush(RGB(255, 0, 0));
+        // Background of health bar (red for missing health, or dark gray for full health background)
+        HBRUSH hBgBrush;
+        if (health < maxHealth) {
+            hBgBrush = CreateSolidBrush(RGB(255, 0, 0)); // Red for missing health
+        } else {
+            hBgBrush = CreateSolidBrush(RGB(50, 50, 50)); // Dark gray for full health background
+        }
         RECT bgRect = { barX, barY, barX + barWidth, barY + barHeight };
-        FillRect(hdc, &bgRect, hRedBrush);
-        DeleteObject(hRedBrush);
+        FillRect(hdc, &bgRect, hBgBrush);
+        DeleteObject(hBgBrush);
 
         // Current health (green)
         HBRUSH hGreenBrush = CreateSolidBrush(RGB(0, 255, 0));
@@ -441,10 +455,22 @@ void Enemy::Mutate(float mutationRate) {
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
 
-    // Mutate health
+    // Mutate health (limit to ±20% to prevent immortal enemies)
     if (dis(gen) < mutationRate) {
-        std::uniform_int_distribution<> health_change(-maxHealth / 10, maxHealth / 10);
-        int newMaxHealth = getMaxFrom(10, maxHealth + health_change(gen)); 
+        std::uniform_real_distribution<float> health_change_factor(0.8f, 1.2f);
+        int baseHealth = 0;
+        
+        // Get base health for this enemy type to limit mutations
+        switch (type) {
+            case EnemyType::OGRE: baseHealth = OGRE_HEALTH; break;
+            case EnemyType::DARK_ELF: baseHealth = DARK_ELF_HEALTH; break;
+            case EnemyType::HARPY: baseHealth = HARPY_HEALTH; break;
+            case EnemyType::MERCENARY: baseHealth = MERCENARY_HEALTH; break;
+            default: baseHealth = maxHealth; break;
+        }
+        
+        int newMaxHealth = static_cast<int>(baseHealth * health_change_factor(gen));
+        newMaxHealth = getMaxFrom(baseHealth / 2, getMinFrom(baseHealth * 2, newMaxHealth)); // Limit to 50%-200% of base
         SetMaxHealth(newMaxHealth);
     }
 
@@ -457,24 +483,24 @@ void Enemy::Mutate(float mutationRate) {
     
     // Mutate pathJitter
     if (dis(gen) < mutationRate) {
-        std::uniform_real_distribution<float> jitter_dis(0.0f, 1.0f);
+        std::uniform_real_distribution<float> jitter_dis(0.1f, 0.4f);
         pathJitter = jitter_dis(gen);
     }
     
-    // Mutate resistances
+    // Mutate resistances (limit changes to prevent extreme resistances)
     if (dis(gen) < mutationRate) {
-        std::uniform_real_distribution<float> resistance_change(0.9f, 1.1f);
-        resistanceArrow = getMaxFrom(0.25f, getMinFrom(2.0f, resistanceArrow * resistance_change(gen)));
+        std::uniform_real_distribution<float> resistance_change(0.95f, 1.05f); // Smaller changes
+        resistanceArrow = getMaxFrom(0.5f, getMinFrom(1.5f, resistanceArrow * resistance_change(gen)));
     }
     
     if (dis(gen) < mutationRate) {
-        std::uniform_real_distribution<float> resistance_change(0.9f, 1.1f);
-        resistanceMagic = getMaxFrom(0.25f, getMinFrom(2.0f, resistanceMagic * resistance_change(gen)));
+        std::uniform_real_distribution<float> resistance_change(0.95f, 1.05f); // Smaller changes
+        resistanceMagic = getMaxFrom(0.5f, getMinFrom(1.5f, resistanceMagic * resistance_change(gen)));
     }
     
     if (dis(gen) < mutationRate) {
-        std::uniform_real_distribution<float> resistance_change(0.9f, 1.1f);
-        resistanceArtillery = getMaxFrom(0.25f, getMinFrom(2.0f, resistanceArtillery * resistance_change(gen)));
+        std::uniform_real_distribution<float> resistance_change(0.95f, 1.05f); // Smaller changes
+        resistanceArtillery = getMaxFrom(0.5f, getMinFrom(1.5f, resistanceArtillery * resistance_change(gen)));
     }
 }
 

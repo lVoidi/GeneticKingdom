@@ -100,29 +100,9 @@ bool Projectile::Update(float deltaTime)
     x += moveX;
     y += moveY;
 
-    // Comprobar si ha llegado al objetivo (o lo ha pasado)
-    // Esto es simplificado. Para objetivos que se mueven, se necesitaría recalcular el ángulo
-    // o usar una lógica de homing, o simplemente un tiempo de vida / distancia máxima.
-    float distToInitialTargetSq = (x - initialTargetX) * (x - initialTargetX) + (y - initialTargetY) * (y - initialTargetY);
-    float travelDistSq = (moveX * moveX + moveY * moveY); // squared distance moved in this frame
-
-    // Si el proyectil ha pasado el punto donde estaba el target inicialmente
-    // O si vuela demasiado lejos (ej. 2000 pixels de su origen - un rango máximo)
-    float dx_origin = x - ((static_cast<int>(x/cellSize) +0.5f)*cellSize); // this logic is not right for origin
-    // Simpler: check distance from where it was fired initially, or just if it passed target
-    // For non-homing, if it has moved roughly the initial distance to target.
-    float initialDx = initialTargetX - ( (int)(x/cellSize - moveX/cellSize) * cellSize + cellSize/2.0f); // Approximation of start x
-    float initialDy = initialTargetY - ( (int)(y/cellSize - moveY/cellSize) * cellSize + cellSize/2.0f);
-    // This check is problematic. A better way: fixed lifetime or max range from tower.
-    // For now, let's say if it gets very close to where the target cell was.
-    float distToTargetCellSq = (x - targetX)*(x-targetX) + (y-targetY)*(y-targetY);
-    if (distToTargetCellSq < (cellSize * cellSize / 4.0f)) { // Reached vicinity of target cell
-        isActive = false;
-    }
-    // Add a max range or lifetime if necessary, e.g.:
-    // if (sqrt( (x-startX_at_spawn)*(x-startX_at_spawn) + (y-startY_at_spawn)*(y-startY_at_spawn) ) > MAX_PROJECTILE_RANGE ) isActive = false;
-
-    return isActive;
+    // Projectile remains active. Deactivation for off-screen will be handled by ProjectileManager.
+    // Deactivation on hit is handled in ProjectileManager::CheckCollisions.
+    return true; // Indicates the projectile itself doesn't see a reason to self-destruct based on this update
 }
 
 // Obtiene el tipo de proyectil
@@ -211,16 +191,25 @@ void ProjectileManager::DrawProjectiles(HDC hdc)
 }
 
 // Actualiza todos los proyectiles
-void ProjectileManager::Update(float deltaTime)
+void ProjectileManager::Update(float deltaTime, float mapWidth, float mapHeight)
 {
-    auto it = projectiles.begin();
-    while (it != projectiles.end()) {
-        (*it)->Update(deltaTime); // Call update first
-        if (!(*it)->IsActive()) { // Then check if it became inactive
-            delete *it;
-            it = projectiles.erase(it);
+    for (size_t i = 0; i < projectiles.size(); /* no increment here */) {
+        if (projectiles[i]->Update(deltaTime)) {
+            // Check if projectile is off-screen
+            float projX, projY;
+            projectiles[i]->GetPosition(projX, projY);
+            if (projX < 0 || projX > mapWidth || projY < 0 || projY > mapHeight) {
+                projectiles[i]->SetActive(false); // Mark as inactive
+            }
+        }
+
+        // Remove inactive projectiles
+        if (!projectiles[i]->IsActive()) {
+            delete projectiles[i];
+            projectiles.erase(projectiles.begin() + i);
+            // Do not increment i, as erase shifts elements
         } else {
-            ++it;
+            i++; // Increment only if not erased
         }
     }
 }

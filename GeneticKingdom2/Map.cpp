@@ -707,22 +707,24 @@ void Map::DrawConstructionMenu(HDC hdc) {
 }
 
 // Actualiza la lógica del mapa
-void Map::Update(float deltaTime, std::vector<Enemy>& enemies) {
+void Map::Update(float deltaTime, std::vector<Enemy>& currentWaveEnemies) {
     WCHAR debugMsg[256];
     swprintf_s(debugMsg, L"Map::Update - deltaTime: %.4f, Enemies: %zu, Torres: %zu\n", 
-              deltaTime, enemies.size(), towerManager.GetTowerCount());
+              deltaTime, currentWaveEnemies.size(), towerManager.GetTowerCount());
     OutputDebugStringW(debugMsg);
     
-    // Actualizar torres y hacer que apunten a enemigos si existen
-    towerManager.Update(deltaTime, projectileManager, CELL_SIZE, enemies);
-    
-    projectileManager.Update(deltaTime);
-    
+    // Actualizar torres
+    towerManager.Update(deltaTime, projectileManager, CELL_SIZE, currentWaveEnemies);
+
+    // Actualizar proyectiles
+    projectileManager.Update(deltaTime, GetMapPixelWidth(), GetMapPixelHeight());
+
+    // Verificar colisiones entre proyectiles y enemigos
+    projectileManager.CheckCollisions(currentWaveEnemies, CELL_SIZE, economy);
+
     swprintf_s(debugMsg, L"Proyectiles activos: %zd\n", 
               projectileManager.GetProjectiles().size());
     OutputDebugStringW(debugMsg);
-    
-    projectileManager.CheckCollisions(enemies, CELL_SIZE, economy);
 }
 
 // Obtiene el estado de construcción actual

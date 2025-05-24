@@ -80,7 +80,7 @@ public:
     void DrawProjectiles(HDC hdc);
 
     // Actualiza todos los proyectiles
-    void Update(float deltaTime);
+    void Update(float deltaTime, float mapWidth, float mapHeight);
     
     // Comprueba colisiones con los objetivos dummy y devuelve los índices impactados
     void CheckCollisions(std::vector<Enemy>& enemies, int cellSize, Economy& economy);

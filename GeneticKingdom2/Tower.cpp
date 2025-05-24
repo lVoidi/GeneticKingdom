@@ -244,18 +244,18 @@ float Tower::GetAttackSpeed() const
 // Obtiene el daño base
 int Tower::GetDamage() const
 {
-    // Daño base para cada tipo de torre
+    // Daño base para cada tipo de torre (aumentado para balancear mejor)
     int baseDamage = 0;
     
     switch (type) {
     case TowerType::ARCHER:
-        baseDamage = 8;  // Poco daño
+        baseDamage = 15;  // Aumentado de 8 a 15
         break;
     case TowerType::MAGE:
-        baseDamage = 15; // Daño medio
+        baseDamage = 25; // Aumentado de 15 a 25
         break;
     case TowerType::GUNNER:
-        baseDamage = 25; // Alto daño
+        baseDamage = 40; // Aumentado de 25 a 40
         break;
     }
     

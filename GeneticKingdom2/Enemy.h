@@ -17,9 +17,9 @@ enum class ProjectileType;
 const int OGRE_HEALTH = 150;
 const float OGRE_SPEED = 35.0f; // Pixels per second
 const int OGRE_GOLD = 150;
-const float OGRE_RESISTANCE_ARROW = 0.75f; // Takes 50% damage from arrows
-const float OGRE_RESISTANCE_MAGIC = 1.5f; // Takes 125% damage from magic
-const float OGRE_RESISTANCE_ARTILLERY = 1.5f;
+const float OGRE_RESISTANCE_ARROW = 0.85f; // Takes 85% damage from arrows (was 75%)
+const float OGRE_RESISTANCE_MAGIC = 1.2f; // Takes 120% damage from magic (was 150%)
+const float OGRE_RESISTANCE_ARTILLERY = 1.3f; // Takes 130% damage from artillery (was 150%)
 
 const int DARK_ELF_HEALTH = 60;
 const float DARK_ELF_SPEED = 80.0f;
