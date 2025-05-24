@@ -28,7 +28,7 @@ struct Cell {
     bool isPath = false;             // Indica si la celda es parte del camino
     bool isEntryPoint = false;       // Indica si es un punto de entrada de enemigos
     bool isBridge = false;           // Indica si es parte del puente del castillo
-    bool isConstructionSpot = false; // Indica si es un punto donde se puede construir una torre
+    bool isConstructionSpot = true; // Indica si es un punto donde se puede construir una torre
 };
 
 // Estados de construcción

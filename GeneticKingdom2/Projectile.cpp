@@ -139,7 +139,7 @@ bool Projectile::LoadImage()
     switch (type) {
     case ProjectileType::ARROW: fileName = L"Arrow.png"; break;
     case ProjectileType::FIREBALL: fileName = L"Fireball.png"; break;
-    case ProjectileType::CANNONBALL: fileName = L"Cannonball.png"; break;
+    case ProjectileType::CANNONBALL: fileName = L"Bomb.png"; break;
     case ProjectileType::FIREARROW: fileName = L"FireArrow.png"; break; // Needs this asset
     case ProjectileType::PURPLEFIREBALL: fileName = L"PurpleFireball.png"; break; // Needs this asset
     case ProjectileType::NUKEBOMB: fileName = L"NukeBomb.png"; break; // Needs this asset

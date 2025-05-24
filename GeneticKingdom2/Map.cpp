@@ -219,7 +219,7 @@ void Map::Draw(HDC hdc) {
         MoveToEx(hdc, col * CELL_SIZE, 0, NULL);
         LineTo(hdc, col * CELL_SIZE, numRows * CELL_SIZE);
     }
-
+/*
     // Dibujar puntos de construcción con la imagen usando GDI+
     if (pConstructionImage && pConstructionImage->GetLastStatus() == Gdiplus::Ok) {
         try {
@@ -265,7 +265,7 @@ void Map::Draw(HDC hdc) {
         }
         SelectObject(hdc, oldBrush);
     }
-    
+    */
     // Dibujar los rangos de las torres
     towerManager.DrawTowerRanges(hdc, CELL_SIZE);
     

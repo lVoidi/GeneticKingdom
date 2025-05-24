@@ -145,6 +145,12 @@ void Enemy::Update(float deltaTime) {
         return;
     }
     
+    if (health <= 0) {
+        wss_upd << L", Action: Returning (health less than 0!).";
+        OutputDebugStringW((wss_upd.str() + L"\n").c_str());
+        return;
+    }
+
     wss_upd << L", Action: Proceeding with movement.";
     OutputDebugStringW((wss_upd.str() + L"\n").c_str());
 

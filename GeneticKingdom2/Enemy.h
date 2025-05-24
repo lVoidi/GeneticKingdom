@@ -15,22 +15,22 @@ enum class ProjectileType;
 
 // Define constants for enemy stats - these can be tuned later
 const int OGRE_HEALTH = 150;
-const float OGRE_SPEED = 20.0f; // Pixels per second
-const int OGRE_GOLD = 20;
-const float OGRE_RESISTANCE_ARROW = 0.5f; // Takes 50% damage from arrows
-const float OGRE_RESISTANCE_MAGIC = 1.25f; // Takes 125% damage from magic
-const float OGRE_RESISTANCE_ARTILLERY = 1.25f;
+const float OGRE_SPEED = 35.0f; // Pixels per second
+const int OGRE_GOLD = 150;
+const float OGRE_RESISTANCE_ARROW = 0.75f; // Takes 50% damage from arrows
+const float OGRE_RESISTANCE_MAGIC = 1.5f; // Takes 125% damage from magic
+const float OGRE_RESISTANCE_ARTILLERY = 1.5f;
 
 const int DARK_ELF_HEALTH = 60;
 const float DARK_ELF_SPEED = 80.0f;
-const int DARK_ELF_GOLD = 15;
-const float DARK_ELF_RESISTANCE_ARROW = 1.25f;
-const float DARK_ELF_RESISTANCE_MAGIC = 0.5f;
-const float DARK_ELF_RESISTANCE_ARTILLERY = 1.25f;
+const int DARK_ELF_GOLD = 125;
+const float DARK_ELF_RESISTANCE_ARROW = 1.5f;
+const float DARK_ELF_RESISTANCE_MAGIC = 0.75f;
+const float DARK_ELF_RESISTANCE_ARTILLERY = 1.5f;
 
 const int HARPY_HEALTH = 80;
 const float HARPY_SPEED = 50.0f;
-const int HARPY_GOLD = 25;
+const int HARPY_GOLD = 100;
 // Harpies might only be targetable by certain towers, handled in Tower logic or here
 // For TakeDamage, assume they take normal damage unless specified
 const float HARPY_RESISTANCE_ARROW = 1.0f; 
@@ -42,7 +42,7 @@ const int MERCENARY_HEALTH = 100;
 const float MERCENARY_SPEED = 40.0f;
 const int MERCENARY_GOLD = 30;
 const float MERCENARY_RESISTANCE_ARROW = 0.75f;
-const float MERCENARY_RESISTANCE_MAGIC = 1.25f;
+const float MERCENARY_RESISTANCE_MAGIC = 1.5f;
 const float MERCENARY_RESISTANCE_ARTILLERY = 0.75f;
 
 
