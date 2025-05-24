@@ -38,8 +38,7 @@ namespace {
 }
 
 Map::Map() : numRows(0), numCols(0), entryRow(0), entryCol(0), gridPen(NULL), constructionSpotBrush(NULL),
-            pConstructionImage(NULL), constructionState(ConstructionState::NONE), selectedRow(-1), selectedCol(-1),
-            rng(std::random_device()()) { // Inicializar el generador de números aleatorios
+            pConstructionImage(NULL), constructionState(ConstructionState::NONE), selectedRow(-1), selectedCol(-1) {
     // Crear un pincel para dibujar la cuadrícula (gris claro)
     gridPen = CreatePen(PS_SOLID, 1, RGB(220, 220, 220));
     // Crear un pincel para los puntos de construcción (amarillo con transparencia)
@@ -267,9 +266,6 @@ void Map::Draw(HDC hdc) {
         SelectObject(hdc, oldBrush);
     }
     
-    // Dibujar los objetivos dummy
-    DrawDummyTargets(hdc);
-    
     // Dibujar los rangos de las torres
     towerManager.DrawTowerRanges(hdc, CELL_SIZE);
     
@@ -488,8 +484,7 @@ void Map::HandleClick(int x, int y) {
             towerManager.HideAllRanges();
         }
     } else {
-        // Si se hace clic en un área vacía que no es un punto de construcción,
-        // crear un objetivo dummy en esa posición
+        // Si se hace clic en un área vacía que no es un punto de construcción
         if (!IsConstructionSpot(row, col) && !HasTower(row, col) && 
             !grid[row][col].isBridge && !grid[row][col].isEntryPoint) {
             // Si ya había un estado de construcción activo, cancelarlo
@@ -499,9 +494,6 @@ void Map::HandleClick(int x, int y) {
                 selectedCol = -1;
                 towerManager.HideAllRanges();
             }
-            
-            // Añadir objetivo dummy
-            AddDummyTarget(row, col);
         }
         
         // Clic fuera de un punto de construcción, cancelar cualquier estado
@@ -722,8 +714,7 @@ void Map::Update(float deltaTime, std::vector<Enemy>& enemies) {
     OutputDebugStringW(debugMsg);
     
     // Actualizar torres y hacer que apunten a enemigos si existen
-    // Placeholder: towerManager.Update will need to take the enemies vector
-    towerManager.Update(deltaTime, projectileManager, CELL_SIZE, enemies); // Needs TowerManager to be updated
+    towerManager.Update(deltaTime, projectileManager, CELL_SIZE, enemies);
     
     projectileManager.Update(deltaTime);
     
@@ -731,13 +722,7 @@ void Map::Update(float deltaTime, std::vector<Enemy>& enemies) {
               projectileManager.GetProjectiles().size());
     OutputDebugStringW(debugMsg);
     
-    projectileManager.CheckCollisions(enemies, CELL_SIZE, economy); 
-    
-    UpdateDummyTargets();
-    
-    if (rand() % 100 < 2 && dummyTargets.size() < 5) {
-        GenerateRandomTargets(1);
-    }
+    projectileManager.CheckCollisions(enemies, CELL_SIZE, economy);
 }
 
 // Obtiene el estado de construcción actual
@@ -777,112 +762,6 @@ Economy& Map::GetEconomy() {
     return economy;
 }
 
-// Añade un objetivo dummy en la posición especificada
-void Map::AddDummyTarget(int row, int col) {
-    // Verificar que las coordenadas estén dentro de los límites
-    if (row < 0 || row >= numRows || col < 0 || col >= numCols) {
-        return;
-    }
-    
-    // Mensaje de depuración
-    WCHAR debugMsg[256];
-    swprintf_s(debugMsg, L"Añadiendo objetivo dummy en [%d,%d]\n", row, col);
-    OutputDebugStringW(debugMsg);
-    
-    // Crear un color aleatorio para el objetivo
-    COLORREF colors[] = {
-        RGB(255, 0, 0),    // Rojo
-        RGB(0, 0, 255),    // Azul
-        RGB(255, 165, 0),  // Naranja
-        RGB(128, 0, 128),  // Púrpura
-        RGB(255, 255, 0)   // Amarillo
-    };
-    
-    int colorIndex = rand() % 5;
-    
-    // Crear el objetivo y añadirlo al vector
-    DummyTarget target;
-    target.row = row;
-    target.col = col;
-    target.lifeTime = 500; // 500 frames de vida (aproximadamente 8-10 segundos)
-    target.color = colors[colorIndex];
-    
-    dummyTargets.push_back(target);
-    swprintf_s(debugMsg, L"Total de objetivos dummy: %zd\n", dummyTargets.size());
-    OutputDebugStringW(debugMsg);
-}
-
-// Actualiza los objetivos dummy
-void Map::UpdateDummyTargets() {
-    // Actualizar tiempo de vida de los objetivos y eliminar los que han expirado
-    auto it = dummyTargets.begin();
-    while (it != dummyTargets.end()) {
-        it->lifeTime--;
-        
-        // Si el tiempo de vida ha terminado, eliminar el objetivo
-        if (it->lifeTime <= 0) {
-            it = dummyTargets.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
-// Dibuja los objetivos dummy
-void Map::DrawDummyTargets(HDC hdc) {
-    for (const auto& target : dummyTargets) {
-        // Crear un pincel con el color del objetivo
-        HBRUSH targetBrush = CreateSolidBrush(target.color);
-        
-        // Dibujar el objetivo como un círculo
-        Gdiplus::Graphics graphics(hdc);
-        Gdiplus::SolidBrush brush(Gdiplus::Color(
-            255, // Alpha
-            GetRValue(target.color),
-            GetGValue(target.color),
-            GetBValue(target.color)
-        ));
-        
-        // Centro de la celda
-        float centerX = (target.col + 0.5f) * CELL_SIZE;
-        float centerY = (target.row + 0.5f) * CELL_SIZE;
-        
-        // Dibujar el objetivo
-        float radius = CELL_SIZE * 0.3f; // 30% del tamaño de la celda
-        graphics.FillEllipse(&brush, centerX - radius, centerY - radius, radius * 2, radius * 2);
-        
-        // Dibujar un borde blanco
-        Gdiplus::Pen pen(Gdiplus::Color(255, 255, 255, 255), 2);
-        graphics.DrawEllipse(&pen, centerX - radius, centerY - radius, radius * 2, radius * 2);
-        
-        // Liberar recursos
-        DeleteObject(targetBrush);
-    }
-}
-
-// Obtiene los objetivos dummy
-const std::vector<DummyTarget>& Map::GetDummyTargets() const {
-    return dummyTargets;
-}
-
-// Genera objetivos dummy aleatorios
-void Map::GenerateRandomTargets(int count) {
-    // Distribuir uniformemente en el mapa, excepto en construcciones y puentes
-    std::uniform_int_distribution<int> rowDist(1, numRows - 2);
-    std::uniform_int_distribution<int> colDist(1, numCols - 2);
-    
-    for (int i = 0; i < count; i++) {
-        int row = rowDist(rng);
-        int col = colDist(rng);
-        
-        // Asegurarse de que no es un punto de construcción ni está ocupado
-        if (!IsConstructionSpot(row, col) && !grid[row][col].isBridge && !grid[row][col].occupied) {
-            AddDummyTarget(row, col);
-        }
-    }
-}
-
-// Placeholder for A* pathfinding. Replace with your actual A* implementation.
 std::vector<std::pair<int, int>> Map::GetPath(std::pair<int, int> startCell, std::pair<int, int> endCell) const {
     std::vector<std::pair<int, int>> path;
     if (startCell == endCell) {

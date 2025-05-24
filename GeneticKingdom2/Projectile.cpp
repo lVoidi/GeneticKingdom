@@ -69,19 +69,22 @@ void Projectile::Draw(HDC hdc)
     graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
 
-    // Rotar la imagen para que apunte en la dirección del movimiento
-    // El centro de rotación es el centro de la imagen
-    // GDI+ rota alrededor de la esquina superior izquierda, así que transladamos, rotamos, transladamos de vuelta
     float imgWidth = static_cast<float>(pImage->GetWidth());
     float imgHeight = static_cast<float>(pImage->GetHeight());
     
+    // Define a desired size for the projectile image
+    const float desiredProjectileWidth = 15.0f;
+    const float desiredProjectileHeight = 15.0f;
+
     Gdiplus::Matrix matrix;
     matrix.Translate(x, y); // Mover al punto de anclaje (posición del proyectil)
     matrix.Rotate(angle * (180.0f / static_cast<float>(M_PI))); // Rotar
-    matrix.Translate(-imgWidth / 2.0f, -imgHeight / 2.0f); // Ajustar para centrar la imagen en (x,y)
+    // Adjust translation to account for the new desired size, so rotation is around the center of the scaled image
+    matrix.Translate(-desiredProjectileWidth / 2.0f, -desiredProjectileHeight / 2.0f); 
     graphics.SetTransform(&matrix);
 
-    graphics.DrawImage(pImage, 0.0f, 0.0f, imgWidth, imgHeight);
+    // Draw the image scaled to the desired size
+    graphics.DrawImage(pImage, 0.0f, 0.0f, desiredProjectileWidth, desiredProjectileHeight);
     
     graphics.ResetTransform(); // Restaurar la transformación
 }
@@ -262,13 +265,13 @@ void Projectile::SetActive(bool active) { isActive = active; }
 
 int Projectile::GetDamage() const {
     switch (type) {
-        case ProjectileType::ARROW: return 10;
-        case ProjectileType::FIREBALL: return 20;
-        case ProjectileType::CANNONBALL: return 35;
-        case ProjectileType::FIREARROW: return 15; // Example: stronger arrow
-        case ProjectileType::PURPLEFIREBALL: return 30; // Example: stronger fireball
-        case ProjectileType::NUKEBOMB: return 100; // Example: very high damage
-        default: return 5;
+        case ProjectileType::ARROW: return 15;
+        case ProjectileType::FIREBALL: return 25;
+        case ProjectileType::CANNONBALL: return 45;
+        case ProjectileType::FIREARROW: return 30;
+        case ProjectileType::PURPLEFIREBALL: return 50;
+        case ProjectileType::NUKEBOMB: return 150;
+        default: return 7;
     }
 }
 

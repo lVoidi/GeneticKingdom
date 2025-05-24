@@ -1,14 +1,2 @@
-﻿  Enemy.cpp
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Enemy.cpp(329,57): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Enemy.cpp(349,53): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Enemy.cpp(349,26): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Enemy.cpp(355,49): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-  GeneticAlgorithm.cpp
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.cpp(95,66): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.cpp(95,66): warning C4267:         with
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.cpp(95,66): warning C4267:         [
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.cpp(95,66): warning C4267:             _Ty=int
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.cpp(95,66): warning C4267:         ]
-  Map.cpp
-  Generating Code...
+﻿  GeneticKingdom2.cpp
   GeneticKingdom2.vcxproj -> C:\Users\roarb\GeneticKingdom\x64\Debug\GeneticKingdom2.exe

@@ -38,14 +38,6 @@ enum class ConstructionState {
     UPGRADING        // Mejorando una torre existente
 };
 
-// Estructura para objetivos dummy
-struct DummyTarget {
-    int row;        // Fila en la cuadrícula
-    int col;        // Columna en la cuadrícula
-    int lifeTime;   // Tiempo de vida en frames
-    COLORREF color; // Color del objetivo
-};
-
 // Clase para gestionar el mapa del juego
 class Map {
 public:
@@ -118,15 +110,6 @@ public:
     // Obtiene una referencia a la economía
     Economy& GetEconomy();
 
-    // Métodos para manejar objetivos dummy
-    void AddDummyTarget(int row, int col);
-    void UpdateDummyTargets();
-    void DrawDummyTargets(HDC hdc);
-    const std::vector<DummyTarget>& GetDummyTargets() const;
-    
-    // Método para generar objetivos dummy aleatoriamente
-    void GenerateRandomTargets(int count);
-
     // Encuentra un camino desde startCell hasta endCell usando A*
     std::vector<std::pair<int, int>> GetPath(std::pair<int, int> startCell, std::pair<int, int> endCell) const;
 
@@ -165,10 +148,4 @@ private:
     
     // Gestor de proyectiles
     ProjectileManager projectileManager;
-
-    // Vector de objetivos dummy
-    std::vector<DummyTarget> dummyTargets;
-    
-    // Generador de números aleatorios
-    std::mt19937 rng;
 }; 

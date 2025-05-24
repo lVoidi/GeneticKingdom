@@ -5,25 +5,30 @@
 #include <string>
 #include <utility> // For std::pair
 
+// Incluir GDI+ de forma segura
+#include <objidl.h>
+#include <gdiplus.h>
+#pragma comment(lib, "gdiplus.lib")
+
 // Forward declare ProjectileType, assuming it's defined elsewhere (e.g., Projectile.h)
 enum class ProjectileType; 
 
 // Define constants for enemy stats - these can be tuned later
-const int OGRE_HEALTH = 200;
+const int OGRE_HEALTH = 150;
 const float OGRE_SPEED = 20.0f; // Pixels per second
 const int OGRE_GOLD = 20;
 const float OGRE_RESISTANCE_ARROW = 0.5f; // Takes 50% damage from arrows
 const float OGRE_RESISTANCE_MAGIC = 1.25f; // Takes 125% damage from magic
 const float OGRE_RESISTANCE_ARTILLERY = 1.25f;
 
-const int DARK_ELF_HEALTH = 75;
+const int DARK_ELF_HEALTH = 60;
 const float DARK_ELF_SPEED = 80.0f;
 const int DARK_ELF_GOLD = 15;
 const float DARK_ELF_RESISTANCE_ARROW = 1.25f;
 const float DARK_ELF_RESISTANCE_MAGIC = 0.5f;
 const float DARK_ELF_RESISTANCE_ARTILLERY = 1.25f;
 
-const int HARPY_HEALTH = 100;
+const int HARPY_HEALTH = 80;
 const float HARPY_SPEED = 50.0f;
 const int HARPY_GOLD = 25;
 // Harpies might only be targetable by certain towers, handled in Tower logic or here
@@ -33,7 +38,7 @@ const float HARPY_RESISTANCE_MAGIC = 1.0f;
 const float HARPY_RESISTANCE_ARTILLERY = 0.0f; // Immune to cannonballs (cannot be hit)
 
 
-const int MERCENARY_HEALTH = 120;
+const int MERCENARY_HEALTH = 100;
 const float MERCENARY_SPEED = 40.0f;
 const int MERCENARY_GOLD = 30;
 const float MERCENARY_RESISTANCE_ARROW = 0.75f;
@@ -82,8 +87,12 @@ public:
     float GetSpeed() const { return speed; }
     void SetMaxHealth(int newMaxHealth) { maxHealth = newMaxHealth; health = newMaxHealth; }
     void SetSpeed(float newSpeed) { speed = newSpeed; }
+    int GetHealth() const { return health; }
 
     void ResetForNewWave(float startX, float startY, const std::vector<std::pair<int, int>>& newPath);
+
+    bool LoadImage(); // Function to load enemy image
+    Gdiplus::Image* pEnemyImage; // Image for the enemy sprite
 
 private:
     EnemyType type;

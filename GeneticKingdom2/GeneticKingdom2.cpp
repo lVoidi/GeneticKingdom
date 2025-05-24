@@ -10,6 +10,8 @@
 #include <wingdi.h>   // Para funciones de GDI
 #include <objidl.h>   // Necesario para GDI+
 #include <gdiplus.h>  // Para GDI+
+#include <sstream>      // For std::wstringstream in logging
+#include <iomanip>      // For std::hex in logging
 #pragma comment(lib, "Msimg32.lib") // Para TransparentBlt
 #pragma comment(lib, "gdiplus.lib") // Para GDI+
 
@@ -281,19 +283,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             FillRect(hdcMem, &clientRect, hbrBackground);
             DeleteObject(hbrBackground);
 
-            // ---- INICIO DE PRUEBA DE DIBUJO ----
-            RECT testRect = { 50, 50, 200, 200 }; // Coordenadas del rectángulo de prueba
-            HBRUSH testBrush = CreateSolidBrush(RGB(255, 0, 0)); // Color rojo
-            FillRect(hdcMem, &testRect, testBrush);
-            DeleteObject(testBrush);
-            // ---- FIN DE PRUEBA DE DIBUJO ----
-
             // DIBUJAR EL MAPA Y TODOS SUS COMPONENTES EN EL BACK BUFFER
             gameMap.Draw(hdcMem); 
 
+            std::wstringstream wss_paint;
+            wss_paint << L"WM_PAINT - Drawing enemies (Wave " << g_currentWaveNumber << L") - Count: " << g_currentWaveEnemies.size() << L"\n";
+            for (size_t i = 0; i < g_currentWaveEnemies.size(); ++i) {
+                const Enemy& enemy_to_draw = g_currentWaveEnemies[i]; // Use a different variable name
+                wss_paint << L"  Draw Enemy[" << i << L"] ID: " << std::hex << &enemy_to_draw
+                          << L", Health: " << enemy_to_draw.GetHealth() << L"/" << enemy_to_draw.GetMaxHealth()
+                          << L", IsActive: " << (enemy_to_draw.IsActive() ? L"Yes" : L"No")
+                          << L", IsAlive: " << (enemy_to_draw.IsAlive() ? L"Yes" : L"No")
+                          << L", X: " << enemy_to_draw.GetX() << L", Y: " << enemy_to_draw.GetY() << L"\n";
+            }
+            OutputDebugStringW(wss_paint.str().c_str());
+
             // Dibujar enemigos de la oleada actual
-            for (const Enemy& enemy : g_currentWaveEnemies) {
-                enemy.Draw(hdcMem);
+            for (const Enemy& enemy_to_draw_loop : g_currentWaveEnemies) { // Use a different variable name
+                enemy_to_draw_loop.Draw(hdcMem);
             }
 
             BitBlt(hdc, 0, 0, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, hdcMem, 0, 0, SRCCOPY);
@@ -395,15 +402,31 @@ void UpdateGame(float deltaTime) {
 
     // Actualizar enemigos
     bool anyActiveEnemies = false;
+    std::wstringstream wss_ug_loop;
+    wss_ug_loop << L"UpdateGame Loop (Pre-EnemyUpdate) - Wave: " << g_currentWaveNumber << L"\n";
+
     for (Enemy& enemy : g_currentWaveEnemies) {
+        wss_ug_loop << L"  Enemy ID: " << std::hex << &enemy 
+                    << L", Health: " << enemy.GetHealth()
+                    << L"/" << enemy.GetMaxHealth()
+                    << L", IsActive: " << (enemy.IsActive() ? L"Yes" : L"No") 
+                    << L", IsAlive: " << (enemy.IsAlive() ? L"Yes" : L"No") 
+                    << L", X: " << enemy.GetX() << L", Y: " << enemy.GetY();
         if (enemy.IsActive()) {
             enemy.Update(deltaTime);
             anyActiveEnemies = true;
+            wss_ug_loop << L", Action: Called Update()\n";
+        } else {
+            wss_ug_loop << L", Action: Skipped Update()\n";
         }
     }
+    OutputDebugStringW(wss_ug_loop.str().c_str());
 
     // Wave end and GA logic
     if (!anyActiveEnemies && g_pGeneticAlgorithm) { // Wave is over
+        std::wstringstream wss_ga_start;
+        wss_ga_start << L"UpdateGame: All enemies inactive. Starting GA for next wave (current wave " << g_currentWaveNumber << L").\n";
+        OutputDebugStringW(wss_ga_start.str().c_str());
         // Ensure bridgeLocation is correctly fetched for fitness calculation
         std::pair<int, int> bridgeGridLoc = gameMap.GetBridgeGridLocation();
         float mapPixelWidth = gameMap.GetMapPixelWidth();
@@ -416,8 +439,21 @@ void UpdateGame(float deltaTime) {
         }
 
         g_pGeneticAlgorithm->SetCurrentPopulation(g_currentWaveEnemies);
+        
+        std::wstringstream wss_ga_pre_gen;
+        wss_ga_pre_gen << L"UpdateGame: Population set for GA. Generating new generation...\n";
+        OutputDebugStringW(wss_ga_pre_gen.str().c_str());
+
         g_currentWaveEnemies = g_pGeneticAlgorithm->GenerateNewGeneration();
         g_currentWaveNumber++;
-        // OutputDebugStringW(L"Generated new wave."); // Debug message
+        
+        std::wstringstream wss_ga_post_gen;
+        wss_ga_post_gen << L"UpdateGame: New wave " << g_currentWaveNumber << L" generated with " << g_currentWaveEnemies.size() << L" enemies.\n";
+        for (const auto& en : g_currentWaveEnemies) {
+            wss_ga_post_gen << L"  NewGen Enemy ID: " << std::hex << &en << L", Health: " << en.GetHealth() 
+                            << L"/" << en.GetMaxHealth()
+                            << L", IsActive: " << (en.IsActive() ? L"Yes" : L"No") << L", X: " << en.GetX() << L", Y: " << en.GetY() << L"\n";
+        }
+        OutputDebugStringW(wss_ga_post_gen.str().c_str());
     }
 }

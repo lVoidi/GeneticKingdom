@@ -6,9 +6,11 @@
 #include <algorithm>
 #include <random>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 
 Enemy::Enemy(EnemyType type, float startX, float startY, const std::vector<std::pair<int, int>>& initialPath)
-    : type(type), x(startX), y(startY), path(initialPath), currentPathIndex(0), isActive(true), fitness(0.0), timeAlive(0.0f), FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false) {
+    : type(type), x(startX), y(startY), path(initialPath), currentPathIndex(0), isActive(true), fitness(0.0), timeAlive(0.0f), FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false), pEnemyImage(NULL) {
     InitializeAttributes();
     health = maxHealth;
     if (!path.empty()) {
@@ -36,7 +38,8 @@ Enemy::Enemy(const Enemy& parent)
       resistanceArtillery(parent.resistanceArtillery),
       fitness(0.0),
       timeAlive(0.0f),
-      FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false)
+      FUSION_ASSISTANT_SECRET_MARKER_reachedBridge(false),
+      pEnemyImage(NULL)
 {
     health = maxHealth;
     if (!path.empty()) {
@@ -48,10 +51,15 @@ Enemy::Enemy(const Enemy& parent)
     }
     // Note: Path and start position for children might need specific logic 
     // depending on how new generations are introduced.
+    InitializeAttributes(); // This will call LoadImage()
 }
 
 
 Enemy::~Enemy() {
+    // GDI+ images are managed by GDI+ system, not deleted directly unless specifically new'd without FromFile
+    // If LoadImage uses Image::FromFile, GDI+ handles it. If it uses new Image(...), then delete here.
+    // Assuming FromFile, so no direct delete for pEnemyImage.
+    pEnemyImage = NULL; // Just clear the pointer
 }
 
 void Enemy::InitializeAttributes() {
@@ -101,13 +109,14 @@ void Enemy::InitializeAttributes() {
         break;
     }
     health = maxHealth;
+    LoadImage(); // Load image after attributes are set
 }
 
 void Enemy::UpdateTargetPosition() {
     if (currentPathIndex < path.size()) {
         // Path stores grid cells, convert to pixel coordinates (center of cell)
-        targetX = static_cast<float>(path[currentPathIndex].first * CELL_SIZE + CELL_SIZE / 2.0f);
-        targetY = static_cast<float>(path[currentPathIndex].second * CELL_SIZE + CELL_SIZE / 2.0f);
+        targetX = static_cast<float>(path[currentPathIndex].second * CELL_SIZE + CELL_SIZE / 2.0f);
+        targetY = static_cast<float>(path[currentPathIndex].first * CELL_SIZE + CELL_SIZE / 2.0f);
     } else {
         // Reached end of path
         // The game logic should handle this, e.g., enemy reached goal
@@ -119,9 +128,25 @@ void Enemy::UpdateTargetPosition() {
 }
 
 void Enemy::Update(float deltaTime) {
-    if (!isActive || !IsAlive()) {
+    std::wstringstream wss_upd;
+    wss_upd << L"Enemy::Update - ID: " << std::hex << this 
+            << L", Health: " << health 
+            << L", IsActive: " << (isActive ? L"Yes" : L"No")
+            << L", IsAlive: " << (IsAlive() ? L"Yes" : L"No");
+
+    if (!isActive) { 
+        wss_upd << L", Action: Returning (inactive).";
+        OutputDebugStringW((wss_upd.str() + L"\n").c_str());
         return;
     }
+    if (!IsAlive()) { 
+        wss_upd << L", Action: Returning (not alive but active!).";
+        OutputDebugStringW((wss_upd.str() + L"\n").c_str());
+        return;
+    }
+    
+    wss_upd << L", Action: Proceeding with movement.";
+    OutputDebugStringW((wss_upd.str() + L"\n").c_str());
 
     timeAlive += deltaTime;
 
@@ -153,42 +178,62 @@ void Enemy::Draw(HDC hdc) const {
         return;
     }
 
-    // Simple colored rectangle for now, replace with sprite later
-    COLORREF color;
-    switch (type) {
-    case EnemyType::OGRE:
-        color = RGB(139, 69, 19); // Brown
-        break;
-    case EnemyType::DARK_ELF:
-        color = RGB(75, 0, 130);   // Indigo
-        break;
-    case EnemyType::HARPY:
-        color = RGB(173, 216, 230); // Light Blue
-        break;
-    case EnemyType::MERCENARY:
-        color = RGB(128, 128, 128); // Gray
-        break;
-    default:
-        color = RGB(0, 0, 0);       // Black (error or default)
-        break;
+    if (pEnemyImage && pEnemyImage->GetLastStatus() == Gdiplus::Ok) {
+        Gdiplus::Graphics graphics(hdc);
+        graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+
+        float enemyDrawWidth = CELL_SIZE * 0.75f;
+        float enemyDrawHeight = CELL_SIZE * 0.75f;
+
+        // Draw enemy image centered at (x, y)
+        graphics.DrawImage(
+            pEnemyImage,
+            x - enemyDrawWidth / 2.0f,
+            y - enemyDrawHeight / 2.0f,
+            enemyDrawWidth,
+            enemyDrawHeight
+        );
+
+    } else {
+        // Fallback to drawing a colored rectangle if image fails to load or is not set
+        COLORREF color;
+        switch (type) {
+        case EnemyType::OGRE:
+            color = RGB(139, 69, 19); // Brown
+            break;
+        case EnemyType::DARK_ELF:
+            color = RGB(75, 0, 130);   // Indigo
+            break;
+        case EnemyType::HARPY:
+            color = RGB(173, 216, 230); // Light Blue
+            break;
+        case EnemyType::MERCENARY:
+            color = RGB(128, 128, 128); // Gray
+            break;
+        default:
+            color = RGB(0, 0, 0);       // Black (error or default)
+            break;
+        }
+        HBRUSH hBrush = CreateSolidBrush(color);
+        HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
+        int enemySizeRect = CELL_SIZE / 2; // Fallback rectangle size
+        Rectangle(hdc, 
+                  static_cast<int>(x - enemySizeRect / 2.0f), 
+                  static_cast<int>(y - enemySizeRect / 2.0f), 
+                  static_cast<int>(x + enemySizeRect / 2.0f), 
+                  static_cast<int>(y + enemySizeRect / 2.0f));
+        SelectObject(hdc, hOldBrush);
+        DeleteObject(hBrush);
     }
 
-    HBRUSH hBrush = CreateSolidBrush(color);
-    HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
-
-    int enemySize = CELL_SIZE / 2; // Adjust as needed
-    Rectangle(hdc, 
-              static_cast<int>(x - enemySize / 2.0f), 
-              static_cast<int>(y - enemySize / 2.0f), 
-              static_cast<int>(x + enemySize / 2.0f), 
-              static_cast<int>(y + enemySize / 2.0f));
-
-    // Draw health bar
+    // Draw health bar (adjust position based on image size if necessary)
     if (health < maxHealth) {
-        int barWidth = enemySize;
+        int barWidth = CELL_SIZE * 0.75f; // Match enemy draw width
         int barHeight = 5;
+        // Position health bar above the enemy image
         int barX = static_cast<int>(x - barWidth / 2.0f);
-        int barY = static_cast<int>(y - enemySize / 2.0f - barHeight - 2); // Above enemy
+        int barY = static_cast<int>(y - (CELL_SIZE * 0.75f) / 2.0f - barHeight - 2); 
 
         // Background of health bar (red)
         HBRUSH hRedBrush = CreateSolidBrush(RGB(255, 0, 0));
@@ -203,9 +248,6 @@ void Enemy::Draw(HDC hdc) const {
         FillRect(hdc, &fgRect, hGreenBrush);
         DeleteObject(hGreenBrush);
     }
-
-    SelectObject(hdc, hOldBrush);
-    DeleteObject(hBrush);
 }
 
 void Enemy::TakeDamage(int damageAmount, ProjectileType projectileType) {
@@ -240,14 +282,32 @@ void Enemy::TakeDamage(int damageAmount, ProjectileType projectileType) {
             break;
     }
 
-    int finalDamage = static_cast<int>(static_cast<float>(damageAmount) * effectiveResistance);
+    float rawCalculatedDamage = static_cast<float>(damageAmount) * effectiveResistance;
+    int finalDamage = 0;
+
+    if (rawCalculatedDamage > 0.0f) {
+        finalDamage = static_cast<int>(std::ceil(rawCalculatedDamage));
+    } else {
+        finalDamage = 0; // No damage or healing if resistance is too high or damage is zero/negative
+    }
+
     health -= finalDamage;
     
+    std::wstringstream wss_td;
+    wss_td << L"Enemy::TakeDamage - ID: " << std::hex << this 
+           << L", Type: " << static_cast<int>(type)
+           << L", DmgTaken: " << finalDamage 
+           << L", NewHealth: " << health;
+
     if (health <= 0) {
         health = 0;
-        isActive = false; // Mark as dead and inactive
-        FUSION_ASSISTANT_SECRET_MARKER_reachedBridge = false; // Died, so did not reach
+        isActive = false; 
+        FUSION_ASSISTANT_SECRET_MARKER_reachedBridge = false; 
+        wss_td << L", IS NOW DEAD & INACTIVE";
+    } else {
+        wss_td << L", IsActive: " << (isActive ? L"Yes" : L"No");
     }
+    OutputDebugStringW((wss_td.str() + L"\n").c_str());
 }
 
 bool Enemy::IsAlive() const {
@@ -358,6 +418,10 @@ void Enemy::Mutate(float mutationRate) {
 }
 
 void Enemy::ResetForNewWave(float startX, float startY, const std::vector<std::pair<int, int>>& newPath) {
+    std::wstringstream wss_reset;
+    wss_reset << L"Enemy::ResetForNewWave - ID: " << std::hex << this 
+              << L", OldHealth: " << health << L", OldIsActive: " << (isActive ? L"Yes" : L"No");
+
     x = startX;
     y = startY;
     path = newPath;
@@ -367,6 +431,10 @@ void Enemy::ResetForNewWave(float startX, float startY, const std::vector<std::p
     FUSION_ASSISTANT_SECRET_MARKER_reachedBridge = false;
     timeAlive = 0.0f;
     fitness = 0.0; // Reset fitness for the new wave
+
+    wss_reset << L", NewHealth: " << health << L", NewIsActive: " << (isActive ? L"Yes" : L"No")
+              << L", NewX: " << x << L", NewY: " << y;
+    OutputDebugStringW((wss_reset.str() + L"\n").c_str());
 
     if (!path.empty()) {
         UpdateTargetPosition();
@@ -390,4 +458,63 @@ std::wstring GetEnemyTypeName(EnemyType type) {
     default:
         return L"Unknown Enemy";
     }
+}
+
+bool Enemy::LoadImage() {
+    pEnemyImage = NULL; // Clear previous image pointer
+    std::wstring fileName;
+    switch (type) {
+    case EnemyType::OGRE: fileName = L"Ogre.png"; break;
+    case EnemyType::DARK_ELF: fileName = L"DarkElf.png"; break;
+    case EnemyType::HARPY: fileName = L"Harpy.png"; break;
+    case EnemyType::MERCENARY: fileName = L"Mercenary.png"; break;
+    default:
+        OutputDebugStringW(L"Enemy::LoadImage - Unknown enemy type\n");
+        return false;
+    }
+
+    const wchar_t* possibleBasePaths[] = {
+        L"Assets\\Enemies\\",
+        L"..\\GeneticKingdom2\\Assets\\Enemies\\",
+        L"GeneticKingdom2\\Assets\\Enemies\\"
+    };
+
+    for (const wchar_t* basePath : possibleBasePaths) {
+        std::wstring fullPath = basePath + fileName;
+        Gdiplus::Image* tempImage = Gdiplus::Image::FromFile(fullPath.c_str());
+        if (tempImage && tempImage->GetLastStatus() == Gdiplus::Ok) {
+            pEnemyImage = tempImage;
+            // OutputDebugStringW((L"Loaded enemy image: " + fullPath + L"\n").c_str());
+            return true;
+        }
+        if (tempImage) {
+             // Gdiplus::Image::FromFile can return an Image object even on error (e.g. file not found gives GenericError)
+             // so we need to delete it if status is not OK.
+            delete tempImage;
+            tempImage = NULL;
+        }
+    }
+
+    // Try from exe path as a fallback
+    WCHAR exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+    WCHAR* lastSlash = wcsrchr(exePath, L'\\');
+    if (lastSlash != NULL) {
+        *lastSlash = L'\0'; // Terminate at the last slash to get the directory
+        std::wstring fullPath = exePath;
+        fullPath += L"\\Assets\\Enemies\\" + fileName;
+        Gdiplus::Image* tempImage = Gdiplus::Image::FromFile(fullPath.c_str());
+        if (tempImage && tempImage->GetLastStatus() == Gdiplus::Ok) {
+            pEnemyImage = tempImage;
+            // OutputDebugStringW((L"Loaded enemy image from exe path: " + fullPath + L"\n").c_str());
+            return true;
+        }
+        if (tempImage) {
+            delete tempImage;
+            tempImage = NULL;
+        }
+    }
+
+    OutputDebugStringW((L"Enemy::LoadImage - Failed to load image: " + fileName + L"\n").c_str());
+    return false;
 } 

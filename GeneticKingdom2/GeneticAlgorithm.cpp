@@ -5,6 +5,8 @@
 #include <algorithm> // For std::sort, std::transform, etc.
 #include <numeric>   // For std::accumulate
 #include <iostream>  // For debugging, remove later
+#include <sstream>   // For logging
+#include <iomanip>   // For logging
 
 // CELL_SIZE is defined as a macro in Map.h
 // extern const int CELL_SIZE;
@@ -41,8 +43,8 @@ void GeneticAlgorithm::InitializePopulation() {
         // Attributes will be base, or slightly randomized if CreateRandomEnemy is implemented.
         EnemyType type = static_cast<EnemyType>(i % 4); // Cycle through Ogre, Dark Elf, Harpy, Mercenary
         
-        float startX = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);
-        float startY = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f);
+        float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
+        float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
 
         Enemy newEnemy(type, startX, startY, initialEnemyPath);
         population.push_back(newEnemy);
@@ -78,8 +80,8 @@ Enemy GeneticAlgorithm::SelectParentRoulette() const {
     if (population.empty()) {
         // Should not happen if initialized. Return a default or throw.
         // std::cerr << "Error: Attempting to select parent from empty population." << std::endl;
-        float startX = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);
-        float startY = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f);
+        float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f);
+        float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);
         return Enemy(EnemyType::OGRE, startX, startY, initialEnemyPath); 
     }
 
@@ -148,8 +150,8 @@ std::pair<Enemy, Enemy> GeneticAlgorithm::PerformCrossover(const Enemy& parent1,
 /*
 void GeneticAlgorithm::EnsurePathForOffspring(Enemy& offspring) {
     offspring.SetPath(initialEnemyPath);
-    float startX = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);
-    float startY = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f);
+    float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
+    float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
 }
 */
 
@@ -158,8 +160,8 @@ void GeneticAlgorithm::CrossoverAndMutate() {
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    float startPixelX = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);
-    float startPixelY = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f);
+    float startPixelX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
+    float startPixelY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
 
     for (size_t i = 0; i < parents.size() / 2; ++i) {
         const Enemy& parent1 = parents[i * 2];
@@ -203,21 +205,23 @@ void GeneticAlgorithm::CrossoverAndMutate() {
 }
 
 std::vector<Enemy> GeneticAlgorithm::GenerateNewGeneration() {
-    // The current implementation of EvaluateFitness updates fitness in the existing population.
-    // SelectParents uses this population.
-    // CrossoverAndMutate creates a new population and replaces the old one.
-    
-    // Step 1: Evaluate fitness of the current population (Done externally by game loop after a wave)
-    // For this method, we assume fitness has been calculated and is current.
+    std::wstringstream wss_gnn_entry;
+    wss_gnn_entry << L"GA::GenerateNewGeneration - Entry. Current pop size: " << population.size();
+    OutputDebugStringW((wss_gnn_entry.str() + L"\n").c_str());
 
+    // Step 1: Evaluate fitness (Done externally)
     // Step 2: Select parents based on fitness
     SelectParents();
+    std::wstringstream wss_gnn_parents;
+    wss_gnn_parents << L"GA::GenerateNewGeneration - Parents selected: " << parents.size();
+    OutputDebugStringW((wss_gnn_parents.str() + L"\n").c_str());
 
     // Step 3: Create new generation through crossover and mutation
-    CrossoverAndMutate();
+    CrossoverAndMutate(); // This replaces internal 'population'
+    std::wstringstream wss_gnn_mutate;
+    wss_gnn_mutate << L"GA::GenerateNewGeneration - CrossoverAndMutate done. New internal pop size: " << population.size();
+    OutputDebugStringW((wss_gnn_mutate.str() + L"\n").c_str());
 
-    // The 'population' member now holds the new generation.
-    // The game loop will take this new population to start the next wave.
     return population; 
 }
 
@@ -225,8 +229,21 @@ const std::vector<Enemy>& GeneticAlgorithm::GetCurrentPopulation() const {
     return population;
 }
 
-void GeneticAlgorithm::SetCurrentPopulation(const std::vector<Enemy>& newPopulation) {
-    population = newPopulation;
+void GeneticAlgorithm::SetCurrentPopulation(const std::vector<Enemy>& newPopulationFromGame) {
+    std::wstringstream wss_scp;
+    wss_scp << L"GA::SetCurrentPopulation - Received population from game with " << newPopulationFromGame.size() << L" enemies. Internal pop size before: " << population.size() << L".\n";
+    for(size_t i = 0; i < newPopulationFromGame.size(); ++i) {
+        const auto& en = newPopulationFromGame[i];
+        wss_scp << L"  Inbound Enemy [" << i << L"] ID: " << std::hex << &en 
+                << L", Health: " << en.GetHealth()
+                << L"/" << en.GetMaxHealth()
+                << L", IsActive: " << (en.IsActive() ? L"Yes" : L"No") 
+                << L", X: " << en.GetX() << L", Y: " << en.GetY() << L"\n";
+    }
+    
+    population = newPopulationFromGame; // This is a copy
+    wss_scp << L"GA::SetCurrentPopulation - Internal population updated. Size now: " << population.size();
+    OutputDebugStringW((wss_scp.str() + L"\n").c_str());
 }
 
 void GeneticAlgorithm::SetMapDetails(const Map* map) {
@@ -249,8 +266,8 @@ Enemy GeneticAlgorithm::CreateRandomEnemy() {
     std::uniform_int_distribution<> typeDist(0, 3); // For 4 enemy types
     EnemyType randomType = static_cast<EnemyType>(typeDist(gen));
 
-    float startX = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);
-    float startY = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f);
+    float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2.0f); // col for X
+    float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2.0f);  // row for Y
 
     Enemy enemy(randomType, startX, startY, initialEnemyPath);
     // Optionally, slightly randomize base stats like health/speed here for initial diversity
