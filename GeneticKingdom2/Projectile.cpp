@@ -35,18 +35,18 @@ Projectile::Projectile(ProjectileType type, int startRow, int startCol, int targ
     switch (type) {
     case ProjectileType::ARROW:
     case ProjectileType::FIREARROW:
-        speed = 300.0f; // Píxeles por segundo
+        speed = 400.0f; // Píxeles por segundo
         break;
     case ProjectileType::FIREBALL:
     case ProjectileType::PURPLEFIREBALL:
-        speed = 200.0f;
+        speed = 300.0f;
         break;
     case ProjectileType::CANNONBALL:
     case ProjectileType::NUKEBOMB:
-        speed = 150.0f;
+        speed = 250.0f;
         break;
     default:
-        speed = 200.0f;
+        speed = 300.0f;
     }
     LoadImage();
 }
