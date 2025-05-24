@@ -1,52 +1,136 @@
 #include "framework.h"
 #include "Map.h"
-#include "Enemy.h" // Ensure full Enemy definition is available
-#include <wincodec.h> // Para cargar imágenes
+#include "Enemy.h"
+#include <wincodec.h>
 #include <vector>
-#include <queue>    // For std::priority_queue
-#include <cmath>    // For sqrt, fabs
-#include <algorithm> // For std::reverse
-#include <map> // For parent tracking or cost storage if not using 2D vector
+#include <queue>
+#include <cmath>
+#include <algorithm>
+#include <map>
+#include <sstream>
 
-// Define M_SQRT2 if not available (e.g. MSVC)
+
+// Esta basura me tiene CANSADO siempre windows.h jodiendo con su macro std::max
+// tuve que hacer esta funcion para evitar conflictos 
+/*
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▒▒▒▒▒▒▓▓▓▒▒▒▓▓▒▓▓▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▒▒▒▒▓▓▓▓▓▓▓▓▓▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒▒▓███▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓███▓▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒▒▒▒▒▒▓▓▓▓▓▓▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▓▓▓▓▓▓▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓█▓▓▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▓▓▓▓▓▓▓▓▓▓▓███▓▓▓████▓▓▓▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓██▓██████▓▓▓▓▓▓▓▓▓▓▓▓▓███▓▓▓██▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▓▓▓▓▓▓▓▓▓█████████▓▓▓▓▓▓██████▓▓▓▓▓▓██▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓███████▓▓▓▓▓▓▓█████▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓█▓▓▓█▓▓▓▓▓▓▓████▓▓▓▓▓▓█████▓▓▓▓█▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓█▓▓████▓▓▓▓█▓▓▓████████▓▓▓▓▓███▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓███████████▓███▓▓▓▓▓▓▓██▓█▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓████████▓▓▓▓▓▓▓▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓██████▓▓▓▓▓▓▓▓▓▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▓█▓▓▓▒▒▒▓▓▒▒▒▒▒▒▒▓▒▒▓▓▓▓▓▓█▓▓████████████████████▓▓▓▓▓███▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▒▓█▓██▓▓▒▒▒▒▓▓▓█▓▓▓▒▓▓▓▓▓▓▓▓▓██████████████████▓████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▓█▓▓▓████▓▓▓▓▒▓▓▓▓█▓▓▓▒▓▓▓▓▓▓▓▓████████████████████▓▓▓▓▓▓▓▓▓▒▒▓▓▓▓▓▓▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+█▓▓▓▓███▓▓███▓▓▒▓▓▓▓▓▓▓▒▒▒▒▓▓▓▓▓▓▓▓██████████████▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+▓▓▓██▓████▓▓███▓▒▓▓▓▓▓▓▒▒▒▒▒▓▓▓▓▓▓▓▓▓██████████▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+██▓▓███▓▓██▓▓▓███████▓▓▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+█████████████▓▓█████▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒
+███████████████████▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▓▒▒▒▒
+███████████████████▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▓▓▒▒▒▒▒▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓██▓▒▒▒▒▒
+██████████████████▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒
+█████████████████▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▓▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒
+███▓██▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒
+▓▓█▓████▓▓▒▒▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▓▓▓▓▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓
+▓▓▓▓▒▒▓▓▓██▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒
+▓▓▓▓▓▒▓▓▓▓▓▓██▓▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▒▓▓▒▒▒▒▒▒▒▒▒▒
+▓▓▓██▓▓▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▓▓▒▒▒▒▒▒▒▒▒
+▓██▓▓██▓▒▓███▓▓▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▓▓▒▒▒▓▓▒▒▒▒▒▒▒▒
+▓▒█▓▓▓██▓▓▓▓▓█▓▓▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▒▒▒▓▓▒▒▒▒▒▒▒
+▓▓▓██▓▓████████▓▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▓▓▓▒▒▒▒▒▒
+▓██▓██▓▓██▓▓▓▓█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒▓▓▓▓▓▓█▓▓▓▓▓▓▒▒▒▒▒
+▓█▓▓▓██▓████▓█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒▓▓▓▓▓▓▓█▓▓▓▓▓▓▒▒▒▒
+▓▓████████▓█▓█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓███▓▓▓▓▒▒▒▒
+███▓▓█████████▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓██████▓▒▒▒▒
+▓▓▓▓▓██████▓█▓▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓███████▓▒▒▒
+▓▓█▓▓███████▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▓▓▓▓▓█████▓██▓▓▒▒
+*/
+int getMaxInt(int a, int b) {
+    return (a > b) ? a : b;
+}
+
 #ifndef M_SQRT2
 #define M_SQRT2 1.41421356237309504880f
 #endif
 
 namespace {
+    /*
+     * mira, este struct es para el pathfinding a*. es bastante simple:
+     * - guarda la posicion (row,col) del nodo
+     * - g_cost es el costo real desde el inicio hasta aqui
+     * - h_cost es la estimacion heuristica hasta el objetivo
+     * - f_cost es la suma de ambos, que usamos para decidir que nodo expandir
+     * - parent guarda de donde venimos para reconstruir el camino
+     * 
+     * nada del otro mundo, pero si lo rompes todo el pathfinding se va a la mierda
+     */
     struct AStarNode {
         int row, col;
-        float gCost; // Cost from start to this node
-        float hCost; // Heuristic cost from this node to end
-        float fCost; // gCost + hCost
-        std::pair<int, int> parent; // Parent's coordinates
+        float gCost;
+        float hCost;
+        float fCost;
+        std::pair<int, int> parent;
 
         AStarNode(int r, int c, float g, float h, std::pair<int, int> p = {-1, -1})
             : row(r), col(c), gCost(g), hCost(h), fCost(g + h), parent(p) {}
 
-        // For priority queue: we want the smallest fCost
         bool operator>(const AStarNode& other) const {
             return fCost > other.fCost;
         }
     };
 
+    /*
+     * funcion simple que calcula la distancia euclidiana entre dos puntos
+     * la usamos como heuristica para a*. podriamos usar manhattan pero
+     * esta nos da mejores resultados para movimiento en 8 direcciones
+     */
     float CalculateHeuristic(int r1, int c1, int r2, int c2) {
         float dr = static_cast<float>(r1 - r2);
         float dc = static_cast<float>(c1 - c2);
-        return std::sqrt(dr * dr + dc * dc); // Euclidean distance
+        return std::sqrt(dr * dr + dc * dc);
     }
 }
 
+/*
+ * constructor del mapa. inicializa todo a valores por defecto y crea
+ * los recursos graficos que necesitamos:
+ * - un pen gris para dibujar la cuadricula
+ * - un brush amarillo para marcar donde se puede construir
+ * 
+ * nada especial, pero sin esto el mapa se veria como el culo
+ */
 Map::Map() : numRows(0), numCols(0), entryRow(0), entryCol(0), gridPen(NULL), constructionSpotBrush(NULL),
             pConstructionImage(NULL), constructionState(ConstructionState::NONE), selectedRow(-1), selectedCol(-1) {
-    // Crear un pincel para dibujar la cuadrícula (gris claro)
     gridPen = CreatePen(PS_SOLID, 1, RGB(220, 220, 220));
-    // Crear un pincel para los puntos de construcción (amarillo con transparencia)
     constructionSpotBrush = CreateSolidBrush(RGB(255, 255, 0));
 }
 
+/*
+ * destructor del mapa. limpia todos los recursos que creamos
+ * si no haces esto windows se queja y tienes memory leaks
+ * y nadie quiere memory leaks, verdad?
+ */
 Map::~Map() {
-    // Liberar recursos
     if (gridPen) {
         DeleteObject(gridPen);
         gridPen = NULL;
@@ -56,59 +140,61 @@ Map::~Map() {
         constructionSpotBrush = NULL;
     }
     if (pConstructionImage) {
-        // Solo marcamos como NULL, ya que GDI+ se encargará de liberarlo
-        // cuando se llame a GdiplusShutdown en la aplicación principal
         pConstructionImage = NULL;
     }
 }
 
+/*
+ * esta funcion es la que inicializa todo el mapa del juego.
+ * toma el ancho y alto de la pantalla y configura una cuadricula basada en celdas.
+ * es simple:
+ * - divide la pantalla en celdas del mismo tamaño 
+ * - crea una matriz 2d para el grid
+ * - pone el punto de entrada a la izquierda en el medio (duh, obvio)
+ * - dibuja un puente en el lado derecho que los enemigos intentaran destruir
+ *
+ * si vas a tocar esto, no la cagues pq el pathfinding y todo lo demas depende
+ * de que esta estructura base este bien hecha :V 
+ */
 void Map::Initialize(int screenWidth, int screenHeight) {
-    // Calcular el número de filas y columnas basado en el tamaño de pantalla
     numRows = screenHeight / CELL_SIZE;
     numCols = screenWidth / CELL_SIZE;
 
-    // Inicializar la matriz de la cuadrícula
     grid.resize(numRows);
     for (int i = 0; i < numRows; i++) {
         grid[i].resize(numCols);
     }
 
-    // Por defecto, establecer el punto de entrada en la parte izquierda (a la mitad)
     entryRow = numRows / 2;
     entryCol = 0;
     grid[entryRow][entryCol].isEntryPoint = true;
 
-    // Por defecto, establecer el puente en la parte derecha
     int bridgeWidth = numCols / 10; 
     int bridgeStart = numCols - bridgeWidth;
     int bridgeHeight = numRows / 10; 
     int bridgeTop = (numRows - bridgeHeight) / 2;
 
-    // Marcar las celdas del puente
     for (int row = bridgeTop; row < bridgeTop + bridgeHeight; row++) {
         for (int col = bridgeStart; col < numCols; col++) {
             grid[row][col].isBridge = true;
         }
     }
 
-    // Cargar los espacios predeterminados para construcción
     LoadConstructionSpots();
-    
-    // Cargar la imagen de construcción
-    LoadConstructionImage();
-    
-    // Inicializar la economía con 500 monedas
+    // quito esto xd
+    //LoadConstructionImage();
     economy.Initialize(500);
 }
 
+// carga la imagen de construccion desde varias rutas posibles
+// Solo que al final no uso esta funcion pq no
+/*
 bool Map::LoadConstructionImage() {
-    // Primero liberamos cualquier imagen previamente cargada
     if (pConstructionImage) {
         delete pConstructionImage;
         pConstructionImage = NULL;
     }
     
-    // Lista de posibles rutas para la imagen
     const WCHAR* possiblePaths[] = {
         L"Assets\\Towers\\Construction.png",
         L"..\\GeneticKingdom2\\Assets\\Towers\\Construction.png",
@@ -116,7 +202,6 @@ bool Map::LoadConstructionImage() {
         L"C:\\Users\\Admin\\source\\repos\\GeneticKingdom2\\GeneticKingdom2\\Assets\\Towers\\Construction.png"
     };
     
-    // Intentar cargar la imagen desde una de las rutas posibles
     for (const WCHAR* path : possiblePaths) {
         pConstructionImage = Gdiplus::Image::FromFile(path);
         if (pConstructionImage && pConstructionImage->GetLastStatus() == Gdiplus::Ok) {
@@ -130,19 +215,15 @@ bool Map::LoadConstructionImage() {
         }
     }
     
-    // Si no se pudo cargar la imagen, obtener la ruta del ejecutable e intentar otras rutas
     WCHAR exePath[MAX_PATH];
     GetModuleFileNameW(NULL, exePath, MAX_PATH);
     
-    // Obtener la carpeta del ejecutable
     WCHAR* lastSlash = wcsrchr(exePath, L'\\');
     if (lastSlash != NULL) {
         *(lastSlash + 1) = L'\0';
         
-        // Construir rutas completas
         WCHAR fullPath[MAX_PATH];
         
-        // Intentar con ruta relativa desde el ejecutable
         wcscpy_s(fullPath, exePath);
         wcscat_s(fullPath, L"Assets\\Towers\\Construction.png");
         pConstructionImage = Gdiplus::Image::FromFile(fullPath);
@@ -159,130 +240,205 @@ bool Map::LoadConstructionImage() {
     }
     
     OutputDebugStringW(L"Error al cargar la imagen de construcción\n");
-    pConstructionImage = NULL; // Asegurarse de que el puntero sea NULL si falló la carga
+    pConstructionImage = NULL;
     return false;
 }
+*/
 
+
+/*
+ * funcion que configura los puntos de construccion en el grid.
+ * esta cosa es crucial porque define donde puede el jugador poner sus torres.
+ * 
+ * basicamente divide el mapa en hileras horizontales:
+ * - hilera superior (2 filas)
+ * - hilera central (1 fila) 
+ * - hilera inferior (2 filas)
+ * y agrega algunos puntos extra entre ellas para que no sea tan aburrido
+ */
 void Map::LoadConstructionSpots() {
-    // Limpiar spots de construcción existentes
-    constructionSpots.clear();
-
-    // Definir puntos de construcción predeterminados
-    // Estos puntos están distribuidos estratégicamente alrededor del camino principal
-    
-    // Puntos a lo largo del lado izquierdo
-    constructionSpots.push_back(std::make_pair(numRows / 4, numCols / 10));
-    constructionSpots.push_back(std::make_pair(numRows / 2 - 3, numCols / 10));
-    constructionSpots.push_back(std::make_pair(numRows / 2 + 3, numCols / 10));
-    constructionSpots.push_back(std::make_pair(3 * numRows / 4, numCols / 10));
-
-    // Puntos en el centro
-    constructionSpots.push_back(std::make_pair(numRows / 4, numCols / 3));
-    constructionSpots.push_back(std::make_pair(numRows / 2, numCols / 3));
-    constructionSpots.push_back(std::make_pair(3 * numRows / 4, numCols / 3));
-    
-    constructionSpots.push_back(std::make_pair(numRows / 4, numCols / 2));
-    constructionSpots.push_back(std::make_pair(numRows / 2, numCols / 2));
-    constructionSpots.push_back(std::make_pair(3 * numRows / 4, numCols / 2));
-    
-    // Puntos cerca del puente (derecha)
-    constructionSpots.push_back(std::make_pair(numRows / 4, 2 * numCols / 3));
-    constructionSpots.push_back(std::make_pair(numRows / 2 - 3, 2 * numCols / 3));
-    constructionSpots.push_back(std::make_pair(numRows / 2 + 3, 2 * numCols / 3));
-    constructionSpots.push_back(std::make_pair(3 * numRows / 4, 2 * numCols / 3));
-
-    // Marcar las celdas correspondientes como puntos de construcción en la grilla
-    for (const auto& spot : constructionSpots) {
-        int row = spot.first;
-        int col = spot.second;
-        
-        // Asegurarse de que el punto está dentro de los límites
-        if (row >= 0 && row < numRows && col >= 0 && col < numCols) {
-            grid[row][col].isConstructionSpot = true;
+    // primero limpiamos toda la mierda anterior
+    for (int r = 0; r < numRows; ++r) {
+        for (int c = 0; c < numCols; ++c) {
+            grid[r][c].isConstructionSpot = false;
         }
     }
+    constructionSpots.clear();
+
+    // calcula las posiciones de las hileras, matematica basica
+    int hileraSuperior_r1 = numRows / 4 - 1;
+    int hileraSuperior_r2 = numRows / 4;
+
+    int hileraCentral_r = numRows / 2;
+
+    int hileraInferior_r1 = 3 * numRows / 4;
+    int hileraInferior_r2 = 3 * numRows / 4 + 1;
+
+    // define el rango horizontal de las hileras, dejando margenes
+    int colStartHileras = numCols / 5;
+    int colEndHileras = 4 * numCols / 5;
+
+    // lambda para agregar spots individuales, verifica que no joda otros elementos
+    auto addSpot = [&](int r, int c) {
+        if (r >= 0 && r < numRows && c >= 0 && c < numCols && 
+            !grid[r][c].isEntryPoint && !grid[r][c].isBridge && !grid[r][c].isConstructionSpot) {
+            
+            bool isPartOfExistingBlock = false;
+            if ((r == hileraSuperior_r1 || r == hileraSuperior_r2 || r == hileraCentral_r || r == hileraInferior_r1 || r == hileraInferior_r2) && (c >= colStartHileras && c <= colEndHileras)) {
+                isPartOfExistingBlock = true;
+            }
+            if (!isPartOfExistingBlock) {
+                grid[r][c].isConstructionSpot = true;
+                constructionSpots.push_back({r, c});
+            }
+        }
+    };
+
+    // lambda para agregar spots en las hileras principales
+    auto addSpotToHilera = [&](int r, int c) {
+         if (r >= 0 && r < numRows && c >= 0 && c < numCols && 
+            !grid[r][c].isEntryPoint && !grid[r][c].isBridge) {
+            grid[r][c].isConstructionSpot = true;
+            constructionSpots.push_back({r, c});
+        }
+    };
+
+    // agrega los spots en la hilera superior
+    if (hileraSuperior_r1 >= 0 && hileraSuperior_r2 < numRows) {
+        for (int c = colStartHileras; c <= colEndHileras; ++c) {
+            addSpotToHilera(hileraSuperior_r1, c);
+            addSpotToHilera(hileraSuperior_r2, c);
+        }
+    }
+
+    // agrega los spots en la hilera central
+    if (hileraCentral_r >= 0 && hileraCentral_r < numRows) {
+        for (int c = colStartHileras; c <= colEndHileras; ++c) {
+            addSpotToHilera(hileraCentral_r, c);
+        }
+    }
+
+    // agrega los spots en la hilera inferior
+    if (hileraInferior_r1 >= 0 && hileraInferior_r2 < numRows) {
+        for (int c = colStartHileras; c <= colEndHileras; ++c) {
+            addSpotToHilera(hileraInferior_r1, c);
+            addSpotToHilera(hileraInferior_r2, c);
+        }
+    }
+
+    // agrega spots extra entre las hileras para que no sea tan predecible
+    int midRow1 = (hileraSuperior_r2 + hileraCentral_r) / 2;
+    int central_col_start = colStartHileras + (colEndHileras - colStartHileras) / 3;
+    int central_col_end = colEndHileras - (colEndHileras - colStartHileras) / 3;
+    int num_central_spots = 3; 
+    int central_spacing = (central_col_end - central_col_start) / getMaxInt(1, num_central_spots -1);
+    
+    if (midRow1 > hileraSuperior_r2 && midRow1 < hileraCentral_r) { 
+        for (int i = 0; i < num_central_spots; ++i) {
+            int c = central_col_start + i * central_spacing;
+            if (num_central_spots == 1) c = (central_col_start + central_col_end) / 2; 
+            addSpot(midRow1, c);
+        }
+    }
+
+    // mas spots extra en la parte inferior
+    int midRow2 = (hileraCentral_r + hileraInferior_r1) / 2 + 1; 
+    if (midRow2 > hileraCentral_r && midRow2 < hileraInferior_r1 +1) { 
+         for (int i = 0; i < num_central_spots; ++i) {
+            int c = central_col_start + i * central_spacing;
+            if (num_central_spots == 1) c = (central_col_start + central_col_end) / 2;
+            addSpot(midRow2, c);
+        }
+    }
+
+    // debug info para los spots en las esquinas
+    std::wstringstream wss_spots_debug;
+    wss_spots_debug << L"Map::LoadConstructionSpots - DEBUGGING CORNER SPOTS:\n";
+
+    // agrega spots en las esquinas para cubrir angulos muertos
+    int r_ul1 = hileraSuperior_r1 - 2, c_ul1 = colStartHileras + 2;
+    wss_spots_debug << L"  Attempting UL1: (" << r_ul1 << L"," << c_ul1 << L") Bridge? " << (grid[r_ul1][c_ul1].isBridge ? L"Y":L"N") << L" Entry? " << (grid[r_ul1][c_ul1].isEntryPoint ? L"Y":L"N") << L"\n";
+    addSpot(r_ul1, c_ul1); 
+
+    int r_ul2 = hileraSuperior_r2 + 2, c_ul2 = colStartHileras - 2;
+    wss_spots_debug << L"  Attempting UL2: (" << r_ul2 << L"," << c_ul2 << L") Bridge? " << (grid[r_ul2][c_ul2].isBridge ? L"Y":L"N") << L" Entry? " << (grid[r_ul2][c_ul2].isEntryPoint ? L"Y":L"N") << L"\n";
+    addSpot(r_ul2, c_ul2); 
+
+    int r_lr1 = hileraInferior_r1 - 2, c_lr1 = colEndHileras + 2;
+    if(r_lr1 >=0 && r_lr1 < numRows && c_lr1 >= 0 && c_lr1 < numCols)
+      wss_spots_debug << L"  Attempting LR1: (" << r_lr1 << L"," << c_lr1 << L") Bridge? " << (grid[r_lr1][c_lr1].isBridge ? L"Y":L"N") << L" Entry? " << (grid[r_lr1][c_lr1].isEntryPoint ? L"Y":L"N") << L"\n";
+    else wss_spots_debug << L"  Attempting LR1: (" << r_lr1 << L"," << c_lr1 << L") - OUT OF BOUNDS FOR LOGGING\n";
+    addSpot(r_lr1, c_lr1); 
+
+    int r_lr2 = hileraInferior_r2 + 2, c_lr2 = colEndHileras - 2;
+     if(r_lr2 >=0 && r_lr2 < numRows && c_lr2 >= 0 && c_lr2 < numCols)
+      wss_spots_debug << L"  Attempting LR2: (" << r_lr2 << L"," << c_lr2 << L") Bridge? " << (grid[r_lr2][c_lr2].isBridge ? L"Y":L"N") << L" Entry? " << (grid[r_lr2][c_lr2].isEntryPoint ? L"Y":L"N") << L"\n";
+    else wss_spots_debug << L"  Attempting LR2: (" << r_lr2 << L"," << c_lr2 << L") - OUT OF BOUNDS FOR LOGGING\n";
+    addSpot(r_lr2, c_lr2); 
+    OutputDebugStringW(wss_spots_debug.str().c_str());
+
+    // elimina duplicados porque somos programadores decentes
+    std::sort(constructionSpots.begin(), constructionSpots.end());
+    constructionSpots.erase(std::unique(constructionSpots.begin(), constructionSpots.end()), constructionSpots.end());
+
+    // debug final para ver cuantos spots quedaron
+    WCHAR msg[128];
+    swprintf_s(msg, L"Map::LoadConstructionSpots - Loaded %zu construction spots.\n", constructionSpots.size());
+    OutputDebugStringW(msg);
 }
 
+// funcion que dibuja todo el mapa
 void Map::Draw(HDC hdc) {
-    // Guardar el pincel original
     HPEN oldPen = (HPEN)SelectObject(hdc, gridPen);
 
-    // Dibujar la cuadrícula
+    // dibuja las lineas horizontales del grid, que emocionante...
     for (int row = 0; row <= numRows; row++) {
-        // Líneas horizontales
         MoveToEx(hdc, 0, row * CELL_SIZE, NULL);
         LineTo(hdc, numCols * CELL_SIZE, row * CELL_SIZE);
     }
 
+    // y ahora las verticales, porque no podemos tener solo horizontales verdad?
     for (int col = 0; col <= numCols; col++) {
-        // Líneas verticales
         MoveToEx(hdc, col * CELL_SIZE, 0, NULL);
         LineTo(hdc, col * CELL_SIZE, numRows * CELL_SIZE);
     }
-/*
-    // Dibujar puntos de construcción con la imagen usando GDI+
-    if (pConstructionImage && pConstructionImage->GetLastStatus() == Gdiplus::Ok) {
-        try {
-            Gdiplus::Graphics graphics(hdc);
-            
-            // Establecer la calidad de dibujo
-            graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
-            graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-            
-            for (const auto& spot : constructionSpots) {
-                int row = spot.first;
-                int col = spot.second;
-                
-                // Solo mostrar imagen de construcción si no hay una torre
-                if (!HasTower(row, col)) {
-                    // Dibujar la imagen en la posición de la celda
-                    graphics.DrawImage(
-                        pConstructionImage,
-                        Gdiplus::Rect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE), // Destino
-                        0, 0, pConstructionImage->GetWidth(), pConstructionImage->GetHeight(), // Fuente
-                        Gdiplus::UnitPixel
-                    );
-                }
-            }
-        } catch (...) {
-            // Si ocurre alguna excepción al dibujar, descartar la imagen
-            OutputDebugStringW(L"Error al dibujar la imagen de construcción\n");
-            pConstructionImage = NULL;
-        }
-    } else {
-        // Si no se pudo cargar la imagen, dibujar los puntos de construcción con un color sólido
-        HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, constructionSpotBrush);
-        for (const auto& spot : constructionSpots) {
-            int row = spot.first;
-            int col = spot.second;
-            
-            // Solo mostrar imagen de construcción si no hay una torre
-            if (!HasTower(row, col)) {
-                RECT spotRect = { col * CELL_SIZE, row * CELL_SIZE,
-                                (col + 1) * CELL_SIZE, (row + 1) * CELL_SIZE };
-                FillRect(hdc, &spotRect, constructionSpotBrush);
+
+    // dibuja los spots de construccion con un color marron horrible
+    // porque alguien penso que seria buena idea (yo xd)
+    HBRUSH constructionSpotFillBrush = CreateSolidBrush(RGB(210, 180, 140));
+    HPEN constructionSpotBorderPen = CreatePen(PS_SOLID, 1, RGB(160, 120, 90));
+    HGDIOBJ oldBrushForSpots = SelectObject(hdc, constructionSpotFillBrush);
+    HGDIOBJ oldPenForSpots = SelectObject(hdc, constructionSpotBorderPen);
+
+    // recorre todo el grid buscando spots de construccion
+    // y los dibuja si no hay una torre ya construida ahi
+    for (int r = 0; r < numRows; ++r) {
+        for (int c = 0; c < numCols; ++c) {
+            if (grid[r][c].isConstructionSpot && !towerManager.HasTower(r,c)) {
+                Rectangle(hdc, c * CELL_SIZE, r * CELL_SIZE, (c + 1) * CELL_SIZE, (r + 1) * CELL_SIZE);
             }
         }
-        SelectObject(hdc, oldBrush);
     }
-    */
-    // Dibujar los rangos de las torres
+    SelectObject(hdc, oldBrushForSpots);
+    SelectObject(hdc, oldPenForSpots);
+    DeleteObject(constructionSpotFillBrush);
+    DeleteObject(constructionSpotBorderPen);
+
+    // dibuja los rangos y las torres, porque aparentemente
+    // necesitamos ver esos circulos todo el tiempo
     towerManager.DrawTowerRanges(hdc, CELL_SIZE);
-    
-    // Dibujar todas las torres
     towerManager.DrawTowers(hdc, CELL_SIZE);
-    
-    // Dibujar todos los proyectiles
     projectileManager.DrawProjectiles(hdc);
     
-    // Dibujar punto de entrada (rojo)
+    // dibuja el punto de entrada en rojo brillante
+    // para que los enemigos sepan por donde entrar, genial
     HBRUSH entryBrush = CreateSolidBrush(RGB(255, 0, 0));
     RECT entryRect = { entryCol * CELL_SIZE, entryRow * CELL_SIZE,
                       (entryCol + 1) * CELL_SIZE, (entryRow + 1) * CELL_SIZE };
     FillRect(hdc, &entryRect, entryBrush);
     DeleteObject(entryBrush);
 
-    // Dibujar puente (azul)
+    // dibuja el puente en azul, porque que otro color podria ser?
     HBRUSH bridgeBrush = CreateSolidBrush(RGB(0, 0, 255));
     for (int row = 0; row < numRows; row++) {
         for (int col = 0; col < numCols; col++) {
@@ -295,18 +451,21 @@ void Map::Draw(HDC hdc) {
     }
     DeleteObject(bridgeBrush);
 
-    // Dibujar el contador de oro en la esquina superior derecha
+    // dibuja la economia en la esquina superior derecha
+    // porque el dinero es importante, no?
     economy.Draw(hdc, GetSystemMetrics(SM_CXSCREEN) - 220, 20);
 
-    // Dibujar menú de construcción si está activo
+    // si estamos construyendo algo, muestra el menu
+    // porque necesitamos mas interfaces
     if (constructionState != ConstructionState::NONE) {
         DrawConstructionMenu(hdc);
     }
 
-    // Restaurar el pincel original
     SelectObject(hdc, oldPen);
 }
 
+// malditos getters redundantes para las dimensiones del grid, pero los necesitamos
+// porque algunos idiotas no saben cual usar
 int Map::GetNumCols() const {
     return numCols;
 }
@@ -323,29 +482,31 @@ int Map::GetGridHeight() const {
     return numRows;
 }
 
+// revisa si una celda esta bloqueada, devuelve true si esta fuera 
+// del mapa porque obviamente no puedes pasar por ahi, genio
 bool Map::IsCellOccupied(int row, int col) const {
-    // Verificar que las coordenadas estén dentro de los límites
     if (row < 0 || row >= numRows || col < 0 || col >= numCols) {
-        return true; // Fuera de límites se considera ocupado
+        return true;
     }
     return grid[row][col].occupied;
 }
 
+// marca una celda como ocupada o no, util para el pathfinding
+// ignora coordenadas invalidas porque no soy tu niñera
 void Map::SetCellOccupied(int row, int col, bool occupied) {
-    // Verificar que las coordenadas estén dentro de los límites
     if (row < 0 || row >= numRows || col < 0 || col >= numCols) {
         return;
     }
     grid[row][col].occupied = occupied;
 }
 
+// configura el punto de entrada de enemigos, limpia el anterior
+// si existe porque no queremos que salgan de todos lados
 void Map::SetEntryPoint(int row, int col) {
-    // Limpiar el punto de entrada anterior
     if (entryRow >= 0 && entryRow < numRows && entryCol >= 0 && entryCol < numCols) {
         grid[entryRow][entryCol].isEntryPoint = false;
     }
 
-    // Establecer el nuevo punto de entrada
     if (row >= 0 && row < numRows && col >= 0 && col < numCols) {
         entryRow = row;
         entryCol = col;
@@ -353,16 +514,20 @@ void Map::SetEntryPoint(int row, int col) {
     }
 }
 
+/*
+ * mira, esta funcion es bastante simple pero importante - configura donde va el puente
+ * que los enemigos intentaran destruir. primero limpia cualquier puente anterior (porque no 
+ * queremos dos puentes, seria estupido) y luego marca las celdas del nuevo puente.
+ * el alto del puente es 1/5 del mapa porque me parecio un buen numero Bv.
+ */
 void Map::SetBridge(int startRow, int startCol, int width) {
-    // Limpiar el puente anterior
     for (int row = 0; row < numRows; row++) {
         for (int col = 0; col < numCols; col++) {
             grid[row][col].isBridge = false;
         }
     }
 
-    // Establecer el nuevo puente
-    int bridgeHeight = numRows / 5; // 20% del alto de la pantalla
+    int bridgeHeight = numRows / 5;
     for (int row = startRow; row < startRow + bridgeHeight && row < numRows; row++) {
         for (int col = startCol; col < startCol + width && col < numCols; col++) {
             grid[row][col].isBridge = true;
@@ -370,35 +535,49 @@ void Map::SetBridge(int startRow, int startCol, int width) {
     }
 }
 
+/* 
+ * funcion estupidamente simple que revisa si puedes construir en una celda.
+ * si la celda esta fuera del mapa obviamente no puedes construir ahi, crack.
+ * si no, revisa si la celda esta marcada como spot de construccion.
+ */
 bool Map::IsConstructionSpot(int row, int col) const {
-    // Verificar que las coordenadas estén dentro de los límites
     if (row < 0 || row >= numRows || col < 0 || col >= numCols) {
         return false;
     }
     return grid[row][col].isConstructionSpot;
 }
 
+/*
+ * devuelve todos los lugares donde puedes construir torres.
+ * si, podria calcularlos cada vez que los necesitamos, pero
+ * eso seria una perdida de tiempo. mejor los guardamos en una lista
+ * y los devolvemos cuando alguien los necesite.
+ */
 std::vector<std::pair<int, int>> Map::GetConstructionSpots() const {
     return constructionSpots;
 }
 
-// Procesa el clic en el mapa
+/* 
+ * maneja los clicks del mouse en el mapa. esta funcion basicamente maneja 3 estados:
+ * 
+ * - seleccion de torre: muestra menu para construir torres nuevas
+ * - mejora de torre: muestra menu para mejorar torres existentes  
+ * - estado normal: permite seleccionar spots de construccion
+ *
+ * el codigo es horrible pero hey, al menos esta organizado por estados
+ * y no es un gran switch-case del infierno
+ */
 void Map::HandleClick(int x, int y) {
-    // Convertir coordenadas de pantalla a coordenadas de celda
     int col = x / CELL_SIZE;
     int row = y / CELL_SIZE;
-    
-    // Si estamos en modo de selección de torre
+
+    /* si estamos seleccionando torre nueva, maneja el menu de construccion */
     if (constructionState == ConstructionState::SELECTING_TOWER) {
-        // Verificar si se hizo clic en una de las opciones del menú
-        
-        // Las coordenadas son relativas al menú, no al mapa
         int menuX = x - (selectedCol * CELL_SIZE + CELL_SIZE + 10);
         int menuY = y - (selectedRow * CELL_SIZE);
         
-        // Comprobar clic en botón de torre Archer - Actualizado para el botón más alto
+        /* boton de arquero - verifica si hay oro suficiente */
         if (menuX >= 10 && menuX <= 90 && menuY >= 45 && menuY <= 95) {
-            // Verificar si hay suficiente oro
             if (economy.SpendGold(economy.GetTowerCost(TowerType::ARCHER))) {
                 BuildTower(TowerType::ARCHER);
                 constructionState = ConstructionState::NONE;
@@ -406,9 +585,8 @@ void Map::HandleClick(int x, int y) {
             return;
         }
         
-        // Comprobar clic en botón de torre Gunner - Actualizado para el botón más alto
+        /* boton de artillero - verifica si hay oro suficiente */
         if (menuX >= 110 && menuX <= 190 && menuY >= 45 && menuY <= 95) {
-            // Verificar si hay suficiente oro
             if (economy.SpendGold(economy.GetTowerCost(TowerType::GUNNER))) {
                 BuildTower(TowerType::GUNNER);
                 constructionState = ConstructionState::NONE;
@@ -416,9 +594,8 @@ void Map::HandleClick(int x, int y) {
             return;
         }
         
-        // Comprobar clic en botón de torre Mage - Actualizado para el botón más alto
+        /* boton de mago - verifica si hay oro suficiente */
         if (menuX >= 210 && menuX <= 290 && menuY >= 45 && menuY <= 95) {
-            // Verificar si hay suficiente oro
             if (economy.SpendGold(economy.GetTowerCost(TowerType::MAGE))) {
                 BuildTower(TowerType::MAGE);
                 constructionState = ConstructionState::NONE;
@@ -426,27 +603,22 @@ void Map::HandleClick(int x, int y) {
             return;
         }
         
-        // Si se hizo clic fuera del menú, cancelar
         constructionState = ConstructionState::NONE;
         return;
     }
     
-    // Si estamos en modo de mejora de torre
+    /* si estamos mejorando torre, maneja el menu de mejoras */
     if (constructionState == ConstructionState::UPGRADING) {
-        // Verificar si se hizo clic en el botón de mejora
-        
-        // Las coordenadas son relativas al menú, no al mapa
         int menuX = x - (selectedCol * CELL_SIZE + CELL_SIZE + 10);
         int menuY = y - (selectedRow * CELL_SIZE);
         
-        // Comprobar clic en botón de mejora
+        /* boton de mejora - verifica nivel y oro */
         if (menuX >= 10 && menuX <= 190 && menuY >= 30 && menuY <= 70) {
             Tower* tower = towerManager.GetTowerAt(selectedRow, selectedCol);
             if (tower) {
                 int currentLevel = static_cast<int>(tower->GetLevel());
                 int upgradeCost = economy.GetUpgradeCost(currentLevel);
                 
-                // Verificar si hay suficiente oro
                 if (economy.SpendGold(upgradeCost)) {
                     UpgradeTower();
                 }
@@ -455,39 +627,33 @@ void Map::HandleClick(int x, int y) {
             return;
         }
         
-        // Si se hizo clic fuera del menú, cancelar
         constructionState = ConstructionState::NONE;
         return;
     }
     
-    // Modo normal - verificar si se hizo clic en un punto de construcción o torre
+    /* maneja clicks en spots de construccion */
     if (IsConstructionSpot(row, col)) {
-        // Si hay una torre en este punto, mostrar menú de mejora y su rango
         if (HasTower(row, col)) {
+            /* si hay torre, muestra menu de mejora si se puede mejorar */
             Tower* tower = towerManager.GetTowerAt(row, col);
             if (tower && tower->CanUpgrade()) {
                 selectedRow = row;
                 selectedCol = col;
                 constructionState = ConstructionState::UPGRADING;
-                
-                // Mostrar el rango de la torre seleccionada
                 towerManager.ShowRangeForTower(row, col);
             }
         }
-        // Si no hay torre, mostrar menú de selección de torre
         else {
+            /* si no hay torre, muestra menu de construccion */
             selectedRow = row;
             selectedCol = col;
             constructionState = ConstructionState::SELECTING_TOWER;
-            
-            // Ocultar todos los rangos al seleccionar un punto de construcción
             towerManager.HideAllRanges();
         }
     } else {
-        // Si se hace clic en un área vacía que no es un punto de construcción
+        /* click fuera de spots validos - limpia seleccion */
         if (!IsConstructionSpot(row, col) && !HasTower(row, col) && 
             !grid[row][col].isBridge && !grid[row][col].isEntryPoint) {
-            // Si ya había un estado de construcción activo, cancelarlo
             if (constructionState != ConstructionState::NONE) {
                 constructionState = ConstructionState::NONE;
                 selectedRow = -1;
@@ -496,89 +662,55 @@ void Map::HandleClick(int x, int y) {
             }
         }
         
-        // Clic fuera de un punto de construcción, cancelar cualquier estado
         else if (constructionState != ConstructionState::NONE) {
             constructionState = ConstructionState::NONE;
             selectedRow = -1;
             selectedCol = -1;
-            
-            // Ocultar todos los rangos
             towerManager.HideAllRanges();
         }
     }
 }
 
-// Dibuja el menú de construcción o mejora
+// Renderiza los sitios en los que se pueden construir :V 
 void Map::DrawConstructionMenu(HDC hdc) {
     if (selectedRow < 0 || selectedCol < 0) {
         return;
     }
     
-    // Crear un rectángulo de menú cerca del punto de construcción
     RECT menuRect = {
         selectedCol * CELL_SIZE + CELL_SIZE + 10,
         selectedRow * CELL_SIZE,
         selectedCol * CELL_SIZE + CELL_SIZE + 310,
-        selectedRow * CELL_SIZE + 150  // Aumentar la altura del menú
+        selectedRow * CELL_SIZE + 150
     };
     
-    // Ajustar el rectángulo si está muy cerca del borde derecho
     if (menuRect.right > GetSystemMetrics(SM_CXSCREEN) - 20) {
         menuRect.left = selectedCol * CELL_SIZE - 310;
         menuRect.right = selectedCol * CELL_SIZE;
     }
     
-    // Crear un fondo para el menú
     HBRUSH menuBrush = CreateSolidBrush(RGB(0, 0, 0));
     FillRect(hdc, &menuRect, menuBrush);
     
-    // Definir una fuente grande para títulos
     HFONT titleFont = CreateFontW(
-        20,                        // Altura (20 puntos)
-        0,                         // Ancho (0 = auto)
-        0,                         // Ángulo de escapamiento
-        0,                         // Ángulo de orientación
-        FW_BOLD,                   // Peso de la fuente (negrita)
-        FALSE,                     // Cursiva
-        FALSE,                     // Subrayado
-        FALSE,                     // Tachado
-        DEFAULT_CHARSET,           // Conjunto de caracteres
-        OUT_OUTLINE_PRECIS,        // Precisión de salida
-        CLIP_DEFAULT_PRECIS,       // Precisión de recorte
-        CLEARTYPE_QUALITY,         // Calidad
-        DEFAULT_PITCH | FF_SWISS,  // Familia y paso
-        L"Arial"                   // Nombre de la fuente
+        20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial"
     );
     
-    // Definir una fuente para textos normales
     HFONT normalFont = CreateFontW(
-        18,                        // Altura (18 puntos)
-        0,                         // Ancho (0 = auto)
-        0,                         // Ángulo de escapamiento
-        0,                         // Ángulo de orientación
-        FW_NORMAL,                 // Peso de la fuente (normal)
-        FALSE,                     // Cursiva
-        FALSE,                     // Subrayado
-        FALSE,                     // Tachado
-        DEFAULT_CHARSET,           // Conjunto de caracteres
-        OUT_OUTLINE_PRECIS,        // Precisión de salida
-        CLIP_DEFAULT_PRECIS,       // Precisión de recorte
-        CLEARTYPE_QUALITY,         // Calidad
-        DEFAULT_PITCH | FF_SWISS,  // Familia y paso
-        L"Arial"                   // Nombre de la fuente
+        18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial"
     );
     
-    // Configurar el color del texto
     SetTextColor(hdc, RGB(255, 255, 255));
     SetBkMode(hdc, TRANSPARENT);
     
-    // Seleccionar la fuente para el título
     HFONT oldFont = (HFONT)SelectObject(hdc, titleFont);
     
-    // Título del menú
     WCHAR title[256];
     if (constructionState == ConstructionState::SELECTING_TOWER) {
-        // Mostrar los costos diferenciados
         swprintf_s(title, L"Seleccione tipo de torre");
     } else if (constructionState == ConstructionState::UPGRADING) {
         Tower* tower = towerManager.GetTowerAt(selectedRow, selectedCol);
@@ -596,23 +728,19 @@ void Map::DrawConstructionMenu(HDC hdc) {
     textRect.left += 10;
     DrawTextW(hdc, title, -1, &textRect, DT_LEFT);
     
-    // Seleccionar la fuente para el texto normal
     SelectObject(hdc, normalFont);
     
-    // Dibujar botones según el estado
     if (constructionState == ConstructionState::SELECTING_TOWER) {
-        // Botón de torre Archer - Aumentamos la altura del botón
         RECT archerButton = {
             menuRect.left + 10,
-            menuRect.top + 45,  // Ajustar posición
+            menuRect.top + 45,
             menuRect.left + 90,
-            menuRect.top + 95   // Aumentar la altura del botón
+            menuRect.top + 95
         };
         HBRUSH archerBrush = CreateSolidBrush(RGB(0, 150, 0));
         FillRect(hdc, &archerButton, archerBrush);
         DeleteObject(archerBrush);
         
-        // Definimos un rectángulo para el nombre y otro para el precio
         RECT archerNameRect = archerButton;
         archerNameRect.top += 10;
         archerNameRect.bottom = archerNameRect.top + 20;
@@ -625,18 +753,16 @@ void Map::DrawConstructionMenu(HDC hdc) {
         swprintf_s(archerPrice, L"%d", economy.GetTowerCost(TowerType::ARCHER));
         DrawTextW(hdc, archerPrice, -1, &archerPriceRect, DT_CENTER);
         
-        // Botón de torre Gunner - Aumentamos la altura del botón
         RECT gunnerButton = {
             menuRect.left + 110,
-            menuRect.top + 45,  // Ajustar posición
+            menuRect.top + 45,
             menuRect.left + 190,
-            menuRect.top + 95   // Aumentar la altura del botón
+            menuRect.top + 95
         };
         HBRUSH gunnerBrush = CreateSolidBrush(RGB(150, 0, 0));
         FillRect(hdc, &gunnerButton, gunnerBrush);
         DeleteObject(gunnerBrush);
         
-        // Definimos un rectángulo para el nombre y otro para el precio
         RECT gunnerNameRect = gunnerButton;
         gunnerNameRect.top += 10;
         gunnerNameRect.bottom = gunnerNameRect.top + 20;
@@ -649,12 +775,11 @@ void Map::DrawConstructionMenu(HDC hdc) {
         swprintf_s(gunnerPrice, L"%d", economy.GetTowerCost(TowerType::GUNNER));
         DrawTextW(hdc, gunnerPrice, -1, &gunnerPriceRect, DT_CENTER);
         
-        // Botón de torre Mage - Aumentamos la altura del botón
         RECT mageButton = {
             menuRect.left + 210,
-            menuRect.top + 45,  // Ajustar posición
+            menuRect.top + 45,
             menuRect.left + 290,
-            menuRect.top + 95   // Aumentar la altura del botón
+            menuRect.top + 95
         };
         HBRUSH mageBrush = CreateSolidBrush(RGB(0, 0, 150));
         FillRect(hdc, &mageButton, mageBrush);
@@ -764,6 +889,41 @@ Economy& Map::GetEconomy() {
     return economy;
 }
 
+void Map::AddTemporaryObstacle(int row, int col) {
+    if (row >= 0 && row < numRows && col >= 0 && col < numCols) {
+        // Avoid adding duplicates, though std::find on vector isn't most efficient for many obstacles
+        auto it = std::find(temporaryObstacles.begin(), temporaryObstacles.end(), std::make_pair(row, col));
+        if (it == temporaryObstacles.end()) {
+            temporaryObstacles.push_back({row, col});
+        }
+    }
+}
+
+void Map::ClearTemporaryObstacles() {
+    temporaryObstacles.clear();
+}
+
+// No se usará RemoveTemporaryObstacle por ahora, Clear es suficiente.
+void Map::RemoveTemporaryObstacle(int row, int col) {
+    temporaryObstacles.erase(
+        std::remove_if(temporaryObstacles.begin(), temporaryObstacles.end(), 
+                       [row, col](const std::pair<int,int>& obs){ return obs.first == row && obs.second == col; }), 
+        temporaryObstacles.end());
+}
+
+bool Map::IsCellTemporarilyObstructed(int row, int col) const {
+    return std::find(temporaryObstacles.begin(), temporaryObstacles.end(), std::make_pair(row, col)) != temporaryObstacles.end();
+}
+
+/*
+ * pathfinding a* - esta funcion es la que hace todo el trabajo
+ * de encontrar el camino mas corto entre dos puntos Bv. es un dolor de huevos
+ * pero es lo que hay que hacer si queremos que los enemigos no se queden
+ * atascados como idiotas.
+ *
+ * recibe: punto inicial y final en coordenadas de grid
+ * devuelve: vector con los puntos del camino, o vacio si no hay ruta
+ */
 std::vector<std::pair<int, int>> Map::GetPath(std::pair<int, int> startCell, std::pair<int, int> endCell) const {
     std::vector<std::pair<int, int>> path;
     if (startCell == endCell) {
@@ -772,27 +932,27 @@ std::vector<std::pair<int, int>> Map::GetPath(std::pair<int, int> startCell, std
     }
     if (startCell.first < 0 || startCell.first >= numRows || startCell.second < 0 || startCell.second >= numCols ||
         endCell.first < 0 || endCell.first >= numRows || endCell.second < 0 || endCell.second >= numCols) {
-        return path; // Invalid start or end
+        return path; // si los puntos estan fuera del mapa, que se jodan
     }
 
     std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> openList;
     
-    // Using a 2D vector to store costs and visited status for quick access.
-    // Initialize with high values.
+    // necesitamos estas estructuras para no volvernos locos:
+    // - costos g para cada celda (distancia desde inicio)
+    // - padres de cada celda para reconstruir el camino
+    // - lista cerrada para no revisar celdas mas de una vez
     std::vector<std::vector<float>> gCosts(numRows, std::vector<float>(numCols, FLT_MAX));
-    // Store parent coordinates to reconstruct path
     std::vector<std::vector<std::pair<int,int>>> parents(numRows, std::vector<std::pair<int,int>>(numCols, {-1,-1}));
-    // Closed list: true if cell has been processed
     std::vector<std::vector<bool>> closedList(numRows, std::vector<bool>(numCols, false));
 
     float startHCost = CalculateHeuristic(startCell.first, startCell.second, endCell.first, endCell.second);
     openList.push(AStarNode(startCell.first, startCell.second, 0.0f, startHCost, {-1,-1}));
     gCosts[startCell.first][startCell.second] = 0.0f;
 
-    // Possible moves (8 directions)
-    int dr[] = {-1, 1, 0, 0, -1, -1, 1, 1}; // Row changes
-    int dc[] = {0, 0, -1, 1, -1, 1, -1, 1}; // Col changes
-    float moveCost[] = {1.0f, 1.0f, 1.0f, 1.0f, M_SQRT2, M_SQRT2, M_SQRT2, M_SQRT2}; // Cost for each move
+    // movimientos en 8 direcciones porque somos pros
+    int dr[] = {-1, 1, 0, 0, -1, -1, 1, 1}; 
+    int dc[] = {0, 0, -1, 1, -1, 1, -1, 1}; 
+    float moveCost[] = {1.0f, 1.0f, 1.0f, 1.0f, M_SQRT2, M_SQRT2, M_SQRT2, M_SQRT2}; 
 
     while(!openList.empty()) {
         AStarNode currentNode = openList.top();
@@ -802,31 +962,39 @@ std::vector<std::pair<int, int>> Map::GetPath(std::pair<int, int> startCell, std
         int c = currentNode.col;
 
         if (closedList[r][c]) {
-            continue; // Already processed
+            continue; // ya revisamos esta celda, siguiente
         }
         closedList[r][c] = true;
 
-        if (r == endCell.first && c == endCell.second) { // Goal reached
+        if (r == endCell.first && c == endCell.second) { 
+            // llegamos! ahora hay que reconstruir el camino
             std::pair<int,int> currentPathNode = endCell;
-            while(currentPathNode.first != -1) { // Backtrack using parents
+            while(currentPathNode.first != -1) {
                 path.push_back(currentPathNode);
                 if (currentPathNode == startCell) break;
                 currentPathNode = parents[currentPathNode.first][currentPathNode.second];
-                if (path.size() > numRows * numCols * 2) return {}; // Safety break for very long/cyclic paths
+                if (path.size() > numRows * numCols * 2) return {}; // por si acaso hay ciclos infinitos
             }
             std::reverse(path.begin(), path.end());
             return path;
         }
 
-        for (int i = 0; i < 8; ++i) { // Check all 8 neighbors
+        // revisamos los 8 vecinos de la celda actual
+        for (int i = 0; i < 8; ++i) {
             int nextR = r + dr[i];
             int nextC = c + dc[i];
 
+            // verificamos que la celda sea valida y no tenga obstaculos
             if (nextR >= 0 && nextR < numRows && nextC >= 0 && nextC < numCols && 
-                !grid[nextR][nextC].occupied && !closedList[nextR][nextC]) {
+                !grid[nextR][nextC].occupied &&                
+                !IsCellTemporarilyObstructed(nextR, nextC) && 
+                !grid[nextR][nextC].isConstructionSpot &&     
+                !towerManager.HasTower(nextR, nextC) &&        
+                !closedList[nextR][nextC]) {
                 
                 float tentativeGCost = gCosts[r][c] + moveCost[i];
 
+                // si encontramos un mejor camino, actualizamos
                 if (tentativeGCost < gCosts[nextR][nextC]) {
                     parents[nextR][nextC] = {r, c};
                     gCosts[nextR][nextC] = tentativeGCost;
@@ -836,19 +1004,21 @@ std::vector<std::pair<int, int>> Map::GetPath(std::pair<int, int> startCell, std
             }
         }
     }
-    return path; // No path found
+    return path; // no hay camino, que se jodan x2
 }
 
+/*
+ * funcion que calcula la posicion del puente en el grid. 
+ * es una shit pero funciona - basicamente toma el tamanio del mapa
+ * y calcula donde empieza el puente y su altura. luego devuelve el punto
+ * central de la primera columna del puente para que los enemigos sepan 
+ * donde tienen que ir a joder.
+ */
 std::pair<int, int> Map::GetBridgeGridLocation() const {
-    // This should return a representative grid cell for the bridge, e.g., its center or entry.
-    // Based on Initialize, bridge starts at (bridgeTop, bridgeStart)
-    // For simplicity, returning the top-left-most cell of the bridge area.
-    // You might want to refine this to be the center or a specific target cell within the bridge.
-    int bridgeActualStartCol = numCols - (numCols / 10); // Recalculate or store bridgeStartCol if not a member
-    int bridgeActualTopRow = (numRows - (numRows / 10)) / 2; // Recalculate or store bridgeTopRow
+    int bridgeActualStartCol = numCols - (numCols / 10); 
+    int bridgeActualTopRow = (numRows - (numRows / 10)) / 2; 
     int bridgeActualHeight = numRows / 10;
 
-    // Return the center of the first column of the bridge area
     return std::make_pair(bridgeActualTopRow + bridgeActualHeight / 2, bridgeActualStartCol);
 }
 
