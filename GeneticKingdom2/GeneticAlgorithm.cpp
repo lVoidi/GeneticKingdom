@@ -81,7 +81,7 @@ GeneticAlgorithm::~GeneticAlgorithm() {
  * 
  * esta funcion es un puto desastre pero funciona. crea un monton de enemigos
  * basandose en el numero base por tipo que definimos. usa diferentes caminos
- * para que los enemigos no se amontonen como idiotas siguiendo la misma ruta.
+ * para que los enemigos no se amontonen como idiotos siguiendo la misma ruta.
  * 
  * si no hay caminos disponibles entra en panico y crea uno directo - mejor
  * que nada supongo. los enemigos se crean con un delay de spawn para que no
@@ -167,14 +167,29 @@ void GeneticAlgorithm::EvaluateFitness(float timeSurvivedByWave, bool waveReache
     wss << L"GeneticAlgorithm::EvaluateFitness - Evaluating " << population.size() << L" enemies\n";
     OutputDebugStringW(wss.str().c_str());
     
+    int currentWaveDeadEnemies = 0;
+    float totalFitness = 0.0f;
+    
     for (Enemy& enemy : population) {
+        // Contar enemigos eliminados
+        if (!enemy.IsAlive()) {
+            currentWaveDeadEnemies++;
+        }
+        
+        // Calcular fitness para cada enemigo
         enemy.CalculateFitness(bridgeLocation,
                               currentMap ? currentMap->GetMapPixelWidth() : 800.0f,
                               currentMap ? currentMap->GetMapPixelHeight() : 600.0f,
                               enemy.GetTimeAlive(),
                               enemy.HasReachedBridge());
+        
+        totalFitness += static_cast<float>(enemy.GetFitness());
     }
     
+    // Actualizar el contador total de enemigos eliminados
+    deadEnemiesCount += currentWaveDeadEnemies;
+    
+    // Ordenar la población por fitness
     std::sort(population.begin(), population.end(),
               [](const Enemy& a, const Enemy& b) {
                   return a.GetFitness() > b.GetFitness();
@@ -182,9 +197,17 @@ void GeneticAlgorithm::EvaluateFitness(float timeSurvivedByWave, bool waveReache
               
     if (!population.empty()) {
         wss.str(L"");
-        wss << L"Best fitness: " << population[0].GetFitness() 
-            << L", Worst fitness: " << population.back().GetFitness() << L"\n";
+        wss << L"Wave stats - Best fitness: " << population[0].GetFitness() 
+            << L", Worst fitness: " << population.back().GetFitness()
+            << L", Average fitness: " << (totalFitness / population.size())
+            << L"\nDead enemies this wave: " << currentWaveDeadEnemies 
+            << L", Total dead enemies: " << deadEnemiesCount << L"\n";
         OutputDebugStringW(wss.str().c_str());
+    }
+
+    // Actualizar estadísticas en el mapa
+    if (currentMap) {
+        UpdateMapStatistics(const_cast<Map*>(currentMap));
     }
 }
 
@@ -259,6 +282,48 @@ void GeneticAlgorithm::SelectParents() {
              if(population.size() > parents.size()) parents.push_back(SelectParentRoulette());
         } 
     }
+
+    // Nuevo: Asegurarnos de tener una distribución equilibrada de rutas
+    std::map<std::string, int> routeTypeCount; // superior, medio, inferior
+    for (const Enemy& enemy : parents) {
+        std::string routeType;
+        if (enemy.GetY() < currentMap->GetMapPixelHeight() * 0.33) {
+            routeType = "superior";
+        } else if (enemy.GetY() > currentMap->GetMapPixelHeight() * 0.66) {
+            routeType = "inferior";
+        } else {
+            routeType = "medio";
+        }
+        routeTypeCount[routeType]++;
+    }
+
+    // Si hay desequilibrio, intentar corregirlo
+    int maxRouteCount = getMaxFromDouble(
+        getMaxFromDouble(static_cast<double>(routeTypeCount["superior"]), 
+                        static_cast<double>(routeTypeCount["medio"])),
+        static_cast<double>(routeTypeCount["inferior"])
+    );
+    
+    if (maxRouteCount > static_cast<int>(parents.size() / 3)) {
+        // Reemplazar algunos padres para balancear
+        std::vector<Enemy> balancedParents;
+        for (const Enemy& parent : parents) {
+            std::string routeType;
+            if (parent.GetY() < currentMap->GetMapPixelHeight() * 0.33) {
+                routeType = "superior";
+            } else if (parent.GetY() > currentMap->GetMapPixelHeight() * 0.66) {
+                routeType = "inferior";
+            } else {
+                routeType = "medio";
+            }
+            
+            if (routeTypeCount[routeType] <= parents.size() / 3) {
+                balancedParents.push_back(parent);
+            }
+        }
+        parents = balancedParents;
+    }
+
     wss_select << L"GeneticAlgorithm::SelectParents - Total selected " << parents.size() << L" parents.\n";
     OutputDebugStringW(wss_select.str().c_str());
 }
@@ -272,6 +337,7 @@ void GeneticAlgorithm::SelectParents() {
  */
 void GeneticAlgorithm::CrossoverAndMutate() {
     wavesGeneratedCount++;
+    mutationCount = 0;  // Reiniciar contador de mutaciones para la nueva oleada
 
     // calculamos cuantos enemigos queremos por tipo en esta oleada
     int incrementFactor = (wavesGeneratedCount -1) / wavesPerIncrement;
@@ -282,19 +348,18 @@ void GeneticAlgorithm::CrossoverAndMutate() {
 
     std::wstringstream wss_debug_crossover;
     wss_debug_crossover << L"GeneticAlgorithm::CrossoverAndMutate - Wave: " << wavesGeneratedCount 
-                        << L", Target per type: " << currentTargetEnemiesPerType << L"\n";
+                        << L", Target per type: " << currentTargetEnemiesPerType 
+                        << L", Starting mutations: " << mutationCount << L"\n";
     OutputDebugStringW(wss_debug_crossover.str().c_str());
 
     std::vector<Enemy> newOffspringPopulation;
     newOffspringPopulation.reserve(populationSize);
 
-    /* 
-     * si no hay padres (primera generacion o algo salio mal)
-     * creamos enemigos aleatorios como si fueramos dios
-     */
     if (parents.empty()) { 
         for(int i=0; i < populationSize; ++i) {
-            newOffspringPopulation.push_back(CreateRandomEnemy());
+            Enemy newEnemy = CreateRandomEnemy();
+            Mutate(newEnemy);  // Asegurarnos de contar las mutaciones
+            newOffspringPopulation.push_back(newEnemy);
         }
     } else {
         std::random_device rd;
@@ -302,12 +367,8 @@ void GeneticAlgorithm::CrossoverAndMutate() {
         std::uniform_real_distribution<float> dis(0.0f, 1.0f);
         std::uniform_int_distribution<int> parentDist(0, static_cast<int>(parents.size()) - 1);
 
-        /* 
-         * aqui viene lo bueno - hacemos crossover entre padres
-         * es como tinder pero para monstruos
-         */
         while (newOffspringPopulation.size() < static_cast<size_t>(populationSize)) {
-            if (parents.size() >= 2 && dis(gen) < crossoverRate ) {
+            if (parents.size() >= 2 && dis(gen) < crossoverRate) {
                 int parent1Idx = parentDist(gen);
                 int parent2Idx = parentDist(gen);
                 while (parent2Idx == parent1Idx && parents.size() > 1) { 
@@ -315,8 +376,8 @@ void GeneticAlgorithm::CrossoverAndMutate() {
                 }
                 
                 std::pair<Enemy, Enemy> offspring = PerformCrossover(parents[parent1Idx], parents[parent2Idx]);
-                offspring.first.Mutate(mutationRate);
-                offspring.second.Mutate(mutationRate);
+                Mutate(offspring.first);
+                Mutate(offspring.second);
                 
                 newOffspringPopulation.push_back(offspring.first);
                 if (newOffspringPopulation.size() < static_cast<size_t>(populationSize)) {
@@ -324,24 +385,24 @@ void GeneticAlgorithm::CrossoverAndMutate() {
                 }
             } else { 
                 Enemy newEnemy = parents[parentDist(gen)]; 
-                newEnemy.Mutate(mutationRate); 
+                Mutate(newEnemy);
                 newOffspringPopulation.push_back(newEnemy);
             }
         }
     }
     
-    /* 
-     * nos aseguramos de tener el numero correcto de cada tipo
-     * porque si no esto se vuelve un circo
-     */
-    RebalanceEnemyTypes(newOffspringPopulation, currentTargetEnemiesPerType); 
-    
-    population = newOffspringPopulation; 
+    RebalanceEnemyTypes(newOffspringPopulation, currentTargetEnemiesPerType);
+    population = newOffspringPopulation;
 
-    std::wstringstream wss;
-    wss << L"GeneticAlgorithm::CrossoverAndMutate - New generation created. Final size after rebalance: " 
-        << population.size() << L" enemies (Target per type was " << currentTargetEnemiesPerType << L")\n";
-    OutputDebugStringW(wss.str().c_str());
+    wss_debug_crossover.str(L"");
+    wss_debug_crossover << L"CrossoverAndMutate complete - New population size: " << population.size() 
+                        << L", Final mutations this wave: " << mutationCount << L"\n";
+    OutputDebugStringW(wss_debug_crossover.str().c_str());
+    
+    // Actualizar estadísticas en el mapa
+    if (currentMap) {
+        UpdateMapStatistics(const_cast<Map*>(currentMap));
+    }
 }
 
 /* 
@@ -474,29 +535,37 @@ Enemy GeneticAlgorithm::SelectParentRoulette() const {
  * porque eso seria una masacre
  */
 std::pair<Enemy, Enemy> GeneticAlgorithm::PerformCrossover(const Enemy& parent1, const Enemy& parent2) const {
-    Enemy child1 = parent1;
-    Enemy child2 = parent2;
-    
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dis(0.0f, 1.0f);
     
-    if (dis(gen) < 0.5f) {
-        child1.SetMaxHealth(parent2.GetMaxHealth());
-        child2.SetMaxHealth(parent1.GetMaxHealth());
+    // Crear un nuevo enemigo con las características base del primer padre
+    float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
+    float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
+    Enemy offspring(parent1.GetType(), startX, startY, initialEnemyPath);
+    
+    // Probabilidad de heredar características del segundo padre
+    if (dis(gen) < crossoverRate) {
+        // Mezclar salud
+        int newHealth = static_cast<int>((parent1.GetMaxHealth() + parent2.GetMaxHealth()) / 2.0f);
+        offspring.SetMaxHealth(newHealth);
+        
+        // Mezclar velocidad
+        float newSpeed = (parent1.GetSpeed() + parent2.GetSpeed()) / 2.0f;
+        offspring.SetSpeed(newSpeed);
+        
+        // Mezclar jitter del camino
+        float newJitter = (parent1.GetPathJitter() + parent2.GetPathJitter()) / 2.0f;
+        offspring.SetPathJitter(newJitter);
     }
     
-    if (dis(gen) < 0.5f) {
-        child1.SetSpeed(parent2.GetSpeed());
-        child2.SetSpeed(parent1.GetSpeed());
+    // Asignar un camino aleatorio de los disponibles
+    if (!alternativePaths.empty()) {
+        int pathIndex = std::uniform_int_distribution<>(0, alternativePaths.size() - 1)(gen);
+        offspring.SetPath(alternativePaths[pathIndex]);
     }
     
-    if (dis(gen) < 0.5f) {
-        child1.SetPathJitter(parent2.GetPathJitter());
-        child2.SetPathJitter(parent1.GetPathJitter());
-    }
-    
-    return std::make_pair(child1, child2);
+    return std::make_pair(offspring, offspring);
 }
 /*
  * mira, esta funcion es bastante simple pero importante - crea un enemigo aleatorio
@@ -524,7 +593,7 @@ Enemy GeneticAlgorithm::CreateRandomEnemy() const {
     float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
     float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
     
-    // elige un camino aleatorio de las alternativas o usa el por defecto
+    // elige un camino aleatorio de las alternativas o usa el default
     std::vector<std::pair<int, int>> chosenPathForNewEnemy;
     if (!alternativePaths.empty()) {
         chosenPathForNewEnemy = alternativePaths[gen() % alternativePaths.size()]; 
@@ -691,24 +760,21 @@ void GeneticAlgorithm::GenerateAlternativePaths(int numPathsToAttempt) {
     /* segundo camino: forzamos a los enemigos a ir por arriba */
     if (alternativePaths.size() < static_cast<size_t>(numPathsToAttempt)) {
         mutableMap->ClearTemporaryObstacles();
-        wss_paths << L"  Generating Path 2 (attempting upper lane by blocking mid/low areas)...\n";
+        wss_paths << L"  Generating Path 2 (attempting upper lane)...\n";
         
-        int blockStartCol = nCols / 6;
-        int blockEndCol = 5 * nCols / 6;
-        addObstaclesInRow(h_mid_r, blockStartCol, blockEndCol);    
+        // Bloqueamos la parte media y baja del mapa
+        int blockStartCol = nCols / 4;
+        int blockEndCol = 3 * nCols / 4;
         
-        for (int c = blockStartCol; c <= blockEndCol; c += 3) {
-            addObstaclesInRowRange(h_inf_r1, h_inf_r2, c, c + 1);
+        // Bloqueo más fuerte en la parte media-baja
+        for (int c = blockStartCol; c <= blockEndCol; c += 2) {
+            addObstaclesInRowRange(h_mid_r, h_inf_r1, c, c + 1);
         }
         
         std::vector<std::pair<int, int>> path2 = currentMap->GetPath(enemyEntryPoint, bridgeLocation);
         if (!path2.empty() && path2 != path1) {
             alternativePaths.push_back(path2);
             wss_paths << L"    Added Path 2 (Upper). Length: " << path2.size() << L"\n";
-        } else if(!path2.empty()) {
-            wss_paths << L"    Path 2 was duplicate or A* could not find a distinct upper path.\n";
-        } else {
-            wss_paths << L"    Path 2 (Upper) FAILED to generate.\n";
         }
         mutableMap->ClearTemporaryObstacles();
     }
@@ -716,24 +782,29 @@ void GeneticAlgorithm::GenerateAlternativePaths(int numPathsToAttempt) {
     /* tercer camino: forzamos a los enemigos a ir por abajo */
     if (alternativePaths.size() < static_cast<size_t>(numPathsToAttempt)) {
         mutableMap->ClearTemporaryObstacles();
-        wss_paths << L"  Generating Path 3 (attempting lower lane by blocking mid/high areas)...\n";
+        wss_paths << L"  Generating Path 3 (attempting lower lane)...\n";
         
-        int blockStartCol = nCols / 6;
-        int blockEndCol = 5 * nCols / 6;
-        for (int c = blockStartCol; c <= blockEndCol; c += 3) {
-            addObstaclesInRowRange(h_sup_r1, h_sup_r2, c, c + 1);
+        // Bloqueamos la parte media y alta del mapa
+        int blockStartCol = nCols / 4;
+        int blockEndCol = 3 * nCols / 4;
+        
+        // Bloqueo más fuerte en la parte media-alta
+        for (int c = blockStartCol; c <= blockEndCol; c += 2) {
+            addObstaclesInRowRange(h_sup_r1, h_mid_r, c, c + 1);
         }
         
-        addObstaclesInRow(h_mid_r, blockStartCol, blockEndCol);    
-
         std::vector<std::pair<int, int>> path3 = currentMap->GetPath(enemyEntryPoint, bridgeLocation);
-        if (!path3.empty() && path3 != path1 && (alternativePaths.size() < 2 || path3 != alternativePaths[1])) {
+        bool isDifferent = true;
+        for (const auto& existingPath : alternativePaths) {
+            if (path3 == existingPath) {
+                isDifferent = false;
+                break;
+            }
+        }
+        
+        if (!path3.empty() && isDifferent) {
             alternativePaths.push_back(path3);
             wss_paths << L"    Added Path 3 (Lower). Length: " << path3.size() << L"\n";
-        } else if(!path3.empty()){
-            wss_paths << L"    Path 3 was duplicate or A* could not find a distinct lower path.\n";
-        } else {
-            wss_paths << L"    Path 3 (Lower) FAILED to generate.\n";
         }
         mutableMap->ClearTemporaryObstacles();
     }

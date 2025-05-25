@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <map>
 #include <sstream>
+#include <iomanip>
+#include <numeric>
 
 
 // Esta basura me tiene CANSADO siempre windows.h jodiendo con su macro std::max
@@ -455,6 +457,91 @@ void Map::Draw(HDC hdc) {
     // porque el dinero es importante, no?
     economy.Draw(hdc, GetSystemMetrics(SM_CXSCREEN) - 220, 20);
 
+    // Mostrar estadísticas en la esquina superior izquierda
+    RECT statsRect = {
+        20,  
+        20,  
+        300, 
+        300  
+    };
+
+    // Crear fuente para las estadísticas con tamaño más grande
+    HFONT statsFont = CreateFontW(
+        24,                    
+        0,                     
+        0,                     
+        0,                     
+        FW_BOLD,              
+        FALSE,                
+        FALSE,                
+        FALSE,                
+        DEFAULT_CHARSET,      
+        OUT_OUTLINE_PRECIS,   
+        CLIP_DEFAULT_PRECIS,  
+        CLEARTYPE_QUALITY,    
+        DEFAULT_PITCH | FF_SWISS, 
+        L"Arial"              
+    );
+
+    HFONT oldFont = (HFONT)SelectObject(hdc, statsFont);
+    SetBkMode(hdc, TRANSPARENT);
+
+   
+    int yOffset = 10;
+    const int lineHeight = 30;  
+    // Generaciones en celeste
+    SetTextColor(hdc, RGB(135, 206, 235));  // Celeste
+    std::wstring genText = L"Generacion: " + std::to_wstring(generationCount);
+    TextOutW(hdc, 10, yOffset, genText.c_str(), genText.length());
+    yOffset += lineHeight;
+
+    // Enemigos eliminados en rojo tomate
+    SetTextColor(hdc, RGB(255, 99, 71));  // Rojo tomate
+    std::wstring deadText = L"Enemigos eliminados: " + std::to_wstring(deadEnemiesCount);
+    TextOutW(hdc, 10, yOffset, deadText.c_str(), deadText.length());
+    yOffset += lineHeight;
+
+    // Fitness en verde pálido
+    SetTextColor(hdc, RGB(152, 251, 152));  // Verde pálido
+    if (!currentFitness.empty()) {
+        int fitnessYOffset = yOffset;
+        std::wstring fitnessHeader = L"Fitness de enemigos:";
+        TextOutW(hdc, 10, fitnessYOffset, fitnessHeader.c_str(), fitnessHeader.length());
+        fitnessYOffset += lineHeight/2;  // Medio espacio después del encabezado
+
+        // Mostrar fitness individuales, máximo 5 por línea
+        const int maxPerLine = 5;
+        const int valueSpacing = 60;  
+        int currentInLine = 0;
+
+        for (size_t i = 0; i < currentFitness.size(); ++i) {
+            std::wstringstream wss;
+            wss << std::fixed << std::setprecision(1) << currentFitness[i];
+            std::wstring fitnessValue = wss.str();
+            
+            TextOutW(hdc, 10 + (currentInLine * valueSpacing), fitnessYOffset, 
+                    fitnessValue.c_str(), fitnessValue.length());
+
+            currentInLine++;
+            if (currentInLine >= maxPerLine) {
+                currentInLine = 0;
+                fitnessYOffset += lineHeight/2;  
+            }
+        }
+        yOffset = fitnessYOffset + lineHeight;  
+    } else {
+        yOffset += lineHeight;
+    }
+
+    // Mutaciones en orquídea
+    SetTextColor(hdc, RGB(218, 112, 214));  // Orquídea
+    std::wstring mutationText = L"Mutaciones: " + std::to_wstring(mutationCount) + 
+                               L" (Prob: " + std::to_wstring(static_cast<int>(mutationProbability * 100)) + L"%)";
+    TextOutW(hdc, 10, yOffset, mutationText.c_str(), mutationText.length());
+
+    SelectObject(hdc, oldFont);
+    DeleteObject(statsFont);
+
     // si estamos construyendo algo, muestra el menu
     // porque necesitamos mas interfaces
     if (constructionState != ConstructionState::NONE) {
@@ -681,7 +768,7 @@ void Map::DrawConstructionMenu(HDC hdc) {
         selectedCol * CELL_SIZE + CELL_SIZE + 10,
         selectedRow * CELL_SIZE,
         selectedCol * CELL_SIZE + CELL_SIZE + 310,
-        selectedRow * CELL_SIZE + 150
+        selectedRow * CELL_SIZE + 350  // Aumentado de 150 a 350 para dar más espacio
     };
     
     if (menuRect.right > GetSystemMetrics(SM_CXSCREEN) - 20) {
@@ -822,7 +909,7 @@ void Map::DrawConstructionMenu(HDC hdc) {
     goldRect.top += 115;  // Incrementar para evitar superposición con los botones más altos
     goldRect.left += 10;
     DrawTextW(hdc, goldText, -1, &goldRect, DT_LEFT);
-    
+
     // Restaurar la fuente original
     SelectObject(hdc, oldFont);
     DeleteObject(titleFont);

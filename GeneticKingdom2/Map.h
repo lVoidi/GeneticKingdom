@@ -134,6 +134,15 @@ public:
     void ClearTemporaryObstacles();
     bool IsCellTemporarilyObstructed(int row, int col) const;
 
+    // Métodos para actualizar estadísticas
+    void SetGenerationCount(int count) { generationCount = count; }
+    void SetDeadEnemiesCount(int count) { deadEnemiesCount = count; }
+    void SetCurrentFitness(const std::vector<float>& fitness) { currentFitness = fitness; }
+    void SetMutationStats(float probability, int count) { 
+        mutationProbability = probability; 
+        mutationCount = count; 
+    }
+
 private:
     std::vector<std::vector<Cell>> grid;                 // Matriz 2D para la cuadrícula
     int numRows;                                         // Número de filas en la cuadrícula
@@ -162,4 +171,11 @@ private:
     ProjectileManager projectileManager;
 
     std::vector<std::pair<int, int>> temporaryObstacles;
+
+    // Estadísticas para mostrar
+    int generationCount = 0;
+    int deadEnemiesCount = 0;
+    std::vector<float> currentFitness;
+    float mutationProbability = 0.0f;
+    int mutationCount = 0;
 }; 

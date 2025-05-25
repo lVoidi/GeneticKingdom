@@ -533,9 +533,10 @@ double Enemy::GetFitness() const {
 // timeSurvived: cuanto tiempo sobrevivio el bastardo
 // reachedBridge: si llego al puente o no (por aquello xd)
 void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float mapWidth, float mapHeight, float timeSurvived, bool FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param) {
+    // Cálculo base de distancia como antes
     float maxPossibleDistance = getMaxFrom(1.0f, std::sqrt(mapWidth * mapWidth + mapHeight * mapHeight)); 
-    float currentDistanceToBridgeX = static_cast<float>(bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f) - x;
-    float currentDistanceToBridgeY = static_cast<float>(bridgeLocation.second * CELL_SIZE + CELL_SIZE / 2.0f) - y;
+    float currentDistanceToBridgeX = static_cast<float>(bridgeLocation.second * CELL_SIZE + CELL_SIZE / 2.0f) - x;
+    float currentDistanceToBridgeY = static_cast<float>(bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f) - y;
     float remainingDistance = std::sqrt(currentDistanceToBridgeX * currentDistanceToBridgeX + currentDistanceToBridgeY * currentDistanceToBridgeY);
     
     double distanceScore = 0.0;
@@ -544,13 +545,26 @@ void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float ma
         distanceScore = getMaxFrom(0.0, getMinFrom(1.0, distanceScore)); 
     }
 
-    double bridgeBonus = FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param ? 100.0 : 0.0;
-    double survivalBonus = static_cast<double>(timeSurvived) * 0.1; 
-
-    fitness = (distanceScore * 50.0) + bridgeBonus + survivalBonus;
-    if (health <= 0 && !FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param) { 
-        fitness *= 0.5; 
+    // Bonus por diversidad de ruta
+    double pathDiversityBonus = 0.0;
+    if (y > mapHeight * 0.66) { // Ruta inferior
+        pathDiversityBonus = 15.0;
+    } else if (y < mapHeight * 0.33) { // Ruta superior
+        pathDiversityBonus = 15.0;
     }
+
+    double bridgeBonus = FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param ? 100.0 : 0.0;
+    double survivalBonus = static_cast<double>(timeSurvived) * 5.0; // Aumentado el peso del tiempo de supervivencia
+    
+    // Nuevo cálculo de fitness que da más peso a la distancia y supervivencia
+    fitness = (distanceScore * 60.0) + bridgeBonus + survivalBonus + pathDiversityBonus;
+    
+    if (health <= 0 && !FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param) { 
+        fitness *= 0.5; // Penalización por muerte sin llegar al puente
+    }
+
+    // Asegurarse de que el fitness nunca sea negativo
+    fitness = getMaxFrom(0.0, fitness);
 }
 
 // maldita funcion de mutacion - aqui es donde los enemigos se vuelven mas fuertes o mas debiles

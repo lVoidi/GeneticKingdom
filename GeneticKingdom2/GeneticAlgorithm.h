@@ -14,9 +14,13 @@
 
 #pragma once
 
+#include "Map.h"
 #include "Enemy.h"
 #include <vector>
 #include <memory> // para los unique_ptr si manejamos enemigos con punteros
+#include <random>
+#include <sstream>
+#include <windows.h>
 
 class Map; // declaracion forward para info del mapa que necesita el GA
 
@@ -40,6 +44,75 @@ public:
     const std::vector<Enemy>& GetCurrentPopulation() const;
     void SetCurrentPopulation(const std::vector<Enemy>& population);
     void SetMapDetails(const Map* map);
+
+    // Método para actualizar las estadísticas en el mapa
+    void UpdateMapStatistics(Map* map) {
+        if (map) {
+            map->SetGenerationCount(wavesGeneratedCount);
+            map->SetDeadEnemiesCount(deadEnemiesCount);
+            
+            // Obtener fitness de la población actual
+            std::vector<float> currentFitness;
+            for (const auto& enemy : population) {
+                currentFitness.push_back(enemy.GetFitness());
+            }
+            map->SetCurrentFitness(currentFitness);
+            
+            // Actualizar estadísticas de mutación
+            map->SetMutationStats(mutationRate, mutationCount);
+        }
+    }
+
+    void Mutate(Enemy& enemy) {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+        
+        if (dis(gen) < mutationRate) {
+            enemy.Mutate(mutationRate);
+            mutationCount++;
+            
+            std::wstringstream wss;
+            wss << L"Mutation applied. Total mutations: " << mutationCount << L"\n";
+            OutputDebugStringW(wss.str().c_str());
+        }
+    }
+
+    void GenerateNextWave() {
+        wavesGeneratedCount++;
+        mutationCount = 0;  // Reiniciar contador de mutaciones para la nueva oleada
+        // Incrementar el número de enemigos por tipo si es necesario
+        if (wavesGeneratedCount % wavesPerIncrement == 0 && enemiesPerTypeBase < maxEnemiesPerType) {
+            enemiesPerTypeBase++;
+        }
+        
+        // Seleccionar padres para la siguiente generación
+        SelectParents();
+        
+        // Generar nueva población mediante cruce y mutación
+        std::vector<Enemy> newPopulation;
+        while (newPopulation.size() < populationSize) {
+            // Seleccionar padres al azar de la población actual
+            Enemy parent1 = SelectRandomParent();
+            Enemy parent2 = SelectRandomParent();
+            
+            // Realizar cruce
+            Enemy offspring = CrossOver(parent1, parent2);
+            
+            // Aplicar mutación
+            Mutate(offspring);
+            
+            newPopulation.push_back(offspring);
+        }
+        
+        // Reemplazar la población anterior con la nueva
+        population = std::move(newPopulation);
+        
+        // Actualizar estadísticas en el mapa
+        if (currentMap) {
+            UpdateMapStatistics(const_cast<Map*>(currentMap));
+        }
+    }
 
 private:
     // variables principales
@@ -73,4 +146,10 @@ private:
     Enemy CreateRandomEnemy() const;
     void RebalanceEnemyTypes(std::vector<Enemy>& enemies, int targetPerType);
     void GenerateAlternativePaths(int numPathsToGenerate);
+
+    int deadEnemiesCount = 0;
+    int mutationCount = 0;
+
+    Enemy SelectRandomParent() const;
+    Enemy CrossOver(const Enemy& parent1, const Enemy& parent2) const;
 }; 

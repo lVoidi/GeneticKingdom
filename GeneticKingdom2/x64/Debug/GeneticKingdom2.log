@@ -1,4 +1,7 @@
-﻿  GeneticAlgorithm.cpp
-  Map.cpp
-  Generating Code...
-  GeneticKingdom2.vcxproj -> C:\Users\roarb\GeneticKingdom\x64\Debug\GeneticKingdom2.exe
+﻿  Map.cpp
+C:\Users\Admin\source\repos\GeneticKingdom\GeneticKingdom2\Map.cpp(496,63): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom\GeneticKingdom2\Map.cpp(502,65): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom\GeneticKingdom2\Map.cpp(510,86): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom\GeneticKingdom2\Map.cpp(524,62): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos
+C:\Users\Admin\source\repos\GeneticKingdom\GeneticKingdom2\Map.cpp(541,73): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos
+  GeneticKingdom2.vcxproj -> C:\Users\Admin\source\repos\GeneticKingdom\x64\Debug\GeneticKingdom2.exe
