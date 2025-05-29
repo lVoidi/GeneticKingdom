@@ -1,14 +1,10 @@
-﻿  Enemy.cpp
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Enemy.cpp(374,22): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Enemy.cpp(537,31): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
-  GeneticAlgorithm.cpp
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.h(57,58): warning C4244: 'argument': conversion from 'double' to '_Ty', possible loss of data
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.h(57,58): warning C4244:         with
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.h(57,58): warning C4244:         [
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.h(57,58): warning C4244:             _Ty=float
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.h(57,58): warning C4244:         ]
-  (compiling source file 'GeneticAlgorithm.cpp')
-  
-C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.cpp(301,23): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+﻿  GeneticAlgorithm.cpp
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\GeneticAlgorithm.cpp(313,23): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+  Map.cpp
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Map.cpp(495,63): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Map.cpp(501,65): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Map.cpp(509,86): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Map.cpp(531,62): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\roarb\GeneticKingdom\GeneticKingdom2\Map.cpp(548,73): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
   Generating Code...
   GeneticKingdom2.vcxproj -> C:\Users\roarb\GeneticKingdom\x64\Debug\GeneticKingdom2.exe

@@ -51,12 +51,8 @@ public:
             map->SetGenerationCount(wavesGeneratedCount);
             map->SetDeadEnemiesCount(deadEnemiesCount);
             
-            // Obtener fitness de la población actual
-            std::vector<float> currentFitness;
-            for (const auto& enemy : population) {
-                currentFitness.push_back(enemy.GetFitness());
-            }
-            map->SetCurrentFitness(currentFitness);
+            // Usar los valores de fitness de la última evaluación en lugar de los actuales
+            map->SetCurrentFitness(lastEvaluatedFitness);
             
             // Actualizar estadísticas de mutación
             map->SetMutationStats(mutationRate, mutationCount);
@@ -149,6 +145,9 @@ private:
 
     int deadEnemiesCount = 0;
     int mutationCount = 0;
+    
+    // Almacenar los valores de fitness de la última evaluación
+    std::vector<float> lastEvaluatedFitness;
 
     Enemy SelectRandomParent() const;
     Enemy CrossOver(const Enemy& parent1, const Enemy& parent2) const;

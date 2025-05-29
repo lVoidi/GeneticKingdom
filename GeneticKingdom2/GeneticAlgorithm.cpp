@@ -170,6 +170,9 @@ void GeneticAlgorithm::EvaluateFitness(float timeSurvivedByWave, bool waveReache
     int currentWaveDeadEnemies = 0;
     float totalFitness = 0.0f;
     
+    // Limpiar el vector de fitness antes de empezar
+    lastEvaluatedFitness.clear();
+    
     for (Enemy& enemy : population) {
         // Contar enemigos eliminados
         if (!enemy.IsAlive()) {
@@ -183,7 +186,15 @@ void GeneticAlgorithm::EvaluateFitness(float timeSurvivedByWave, bool waveReache
                               enemy.GetTimeAlive(),
                               enemy.HasReachedBridge());
         
-        totalFitness += static_cast<float>(enemy.GetFitness());
+        double enemyFitness = enemy.GetFitness();
+        totalFitness += static_cast<float>(enemyFitness);
+        
+        // Guardar el fitness en el vector
+        lastEvaluatedFitness.push_back(static_cast<float>(enemyFitness));
+        
+        wss.str(L"");
+        wss << L"Enemy fitness calculated: " << enemyFitness << L"\n";
+        OutputDebugStringW(wss.str().c_str());
     }
     
     // Actualizar el contador total de enemigos eliminados
@@ -201,7 +212,8 @@ void GeneticAlgorithm::EvaluateFitness(float timeSurvivedByWave, bool waveReache
             << L", Worst fitness: " << population.back().GetFitness()
             << L", Average fitness: " << (totalFitness / population.size())
             << L"\nDead enemies this wave: " << currentWaveDeadEnemies 
-            << L", Total dead enemies: " << deadEnemiesCount << L"\n";
+            << L", Total dead enemies: " << deadEnemiesCount 
+            << L"\nTotal fitness values stored: " << lastEvaluatedFitness.size() << L"\n";
         OutputDebugStringW(wss.str().c_str());
     }
 
