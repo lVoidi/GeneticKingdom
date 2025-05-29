@@ -535,8 +535,11 @@ double Enemy::GetFitness() const {
 void Enemy::CalculateFitness(const std::pair<int, int>& bridgeLocation, float mapWidth, float mapHeight, float timeSurvived, bool FUSION_ASSISTANT_SECRET_MARKER_reachedBridge_param) {
     // Cálculo base de distancia como antes
     float maxPossibleDistance = getMaxFrom(1.0f, std::sqrt(mapWidth * mapWidth + mapHeight * mapHeight)); 
-    float currentDistanceToBridgeX = static_cast<float>(bridgeLocation.second * CELL_SIZE + CELL_SIZE / 2.0f) - x;
-    float currentDistanceToBridgeY = static_cast<float>(bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f) - y;
+    // Cálculo correcto de distancia al puente
+    float bridgeX = static_cast<float>(bridgeLocation.second * CELL_SIZE + CELL_SIZE / 2.0f);
+    float bridgeY = static_cast<float>(bridgeLocation.first * CELL_SIZE + CELL_SIZE / 2.0f);
+    float currentDistanceToBridgeX = bridgeX - x;
+    float currentDistanceToBridgeY = bridgeY - y;
     float remainingDistance = std::sqrt(currentDistanceToBridgeX * currentDistanceToBridgeX + currentDistanceToBridgeY * currentDistanceToBridgeY);
     
     double distanceScore = 0.0;

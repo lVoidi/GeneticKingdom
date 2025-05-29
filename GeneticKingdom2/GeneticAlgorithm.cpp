@@ -53,7 +53,7 @@ GeneticAlgorithm::GeneticAlgorithm(int populationSize, float mutationRate, float
                                    const std::pair<int, int>& entryPoint,
                                    const std::pair<int, int>& bridgeLocation,
                                    const Map* gameMap)
-    : populationSize(populationSize), mutationRate(mutationRate), crossoverRate(crossoverRate),
+    : populationSize(populationSize), mutationRate(0.15f), crossoverRate(crossoverRate),
       enemyEntryPoint(entryPoint), bridgeLocation(bridgeLocation), currentMap(gameMap),
       enemiesPerTypeBase(3), maxEnemiesPerType(5), wavesPerIncrement(2), wavesGeneratedCount(0) {
     
@@ -178,8 +178,8 @@ void GeneticAlgorithm::EvaluateFitness(float timeSurvivedByWave, bool waveReache
         
         // Calcular fitness para cada enemigo
         enemy.CalculateFitness(bridgeLocation,
-                              currentMap ? currentMap->GetMapPixelWidth() : 800.0f,
-                              currentMap ? currentMap->GetMapPixelHeight() : 600.0f,
+                              currentMap->GetMapPixelWidth(),
+                              currentMap->GetMapPixelHeight(),
                               enemy.GetTimeAlive(),
                               enemy.HasReachedBridge());
         
@@ -539,33 +539,62 @@ std::pair<Enemy, Enemy> GeneticAlgorithm::PerformCrossover(const Enemy& parent1,
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dis(0.0f, 1.0f);
     
-    // Crear un nuevo enemigo con las características base del primer padre
+    // Crear dos nuevos enemigos con posiciones iniciales
     float startX = static_cast<float>(enemyEntryPoint.second * CELL_SIZE + CELL_SIZE / 2);
     float startY = static_cast<float>(enemyEntryPoint.first * CELL_SIZE + CELL_SIZE / 2);
-    Enemy offspring(parent1.GetType(), startX, startY, initialEnemyPath);
     
-    // Probabilidad de heredar características del segundo padre
-    if (dis(gen) < crossoverRate) {
-        // Mezclar salud
-        int newHealth = static_cast<int>((parent1.GetMaxHealth() + parent2.GetMaxHealth()) / 2.0f);
-        offspring.SetMaxHealth(newHealth);
-        
-        // Mezclar velocidad
-        float newSpeed = (parent1.GetSpeed() + parent2.GetSpeed()) / 2.0f;
-        offspring.SetSpeed(newSpeed);
-        
-        // Mezclar jitter del camino
-        float newJitter = (parent1.GetPathJitter() + parent2.GetPathJitter()) / 2.0f;
-        offspring.SetPathJitter(newJitter);
-    }
-    
-    // Asignar un camino aleatorio de los disponibles
+    Enemy offspring1(parent1.GetType(), startX, startY, initialEnemyPath);
+    Enemy offspring2(parent2.GetType(), startX, startY, initialEnemyPath);
+
+    // Mezclar atributos usando crossover uniforme
+    auto crossoverAttribute = [&](auto& attr1, auto& attr2) {
+        if (dis(gen) < 0.5f) {
+            std::swap(attr1, attr2);
+        }
+    };
+
+    // Mezclar salud
+    int health1 = parent1.GetMaxHealth();
+    int health2 = parent2.GetMaxHealth();
+    crossoverAttribute(health1, health2);
+    offspring1.SetMaxHealth(health1);
+    offspring2.SetMaxHealth(health2);
+
+    // Mezclar velocidad
+    float speed1 = parent1.GetSpeed();
+    float speed2 = parent2.GetSpeed();
+    crossoverAttribute(speed1, speed2);
+    offspring1.SetSpeed(speed1);
+    offspring2.SetSpeed(speed2);
+
+    // Mezclar resistencias
+    float arrowRes1 = parent1.GetArrowResistance();
+    float arrowRes2 = parent2.GetArrowResistance();
+    crossoverAttribute(arrowRes1, arrowRes2);
+    offspring1.SetArrowResistance(arrowRes1);
+    offspring2.SetArrowResistance(arrowRes2);
+
+    float magicRes1 = parent1.GetMagicResistance();
+    float magicRes2 = parent2.GetMagicResistance();
+    crossoverAttribute(magicRes1, magicRes2);
+    offspring1.SetMagicResistance(magicRes1);
+    offspring2.SetMagicResistance(magicRes2);
+
+    float artilleryRes1 = parent1.GetArtilleryResistance();
+    float artilleryRes2 = parent2.GetArtilleryResistance();
+    crossoverAttribute(artilleryRes1, artilleryRes2);
+    offspring1.SetArtilleryResistance(artilleryRes1);
+    offspring2.SetArtilleryResistance(artilleryRes2);
+
+    // Asignar caminos diferentes a cada hijo
     if (!alternativePaths.empty()) {
-        int pathIndex = std::uniform_int_distribution<>(0, alternativePaths.size() - 1)(gen);
-        offspring.SetPath(alternativePaths[pathIndex]);
+        int pathIndex1 = gen() % alternativePaths.size();
+        int pathIndex2 = gen() % alternativePaths.size();
+        offspring1.SetPath(alternativePaths[pathIndex1]);
+        offspring2.SetPath(alternativePaths[pathIndex2]);
     }
     
-    return std::make_pair(offspring, offspring);
+    return std::make_pair(offspring1, offspring2);
 }
 /*
  * mira, esta funcion es bastante simple pero importante - crea un enemigo aleatorio

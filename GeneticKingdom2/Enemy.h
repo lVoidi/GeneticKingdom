@@ -15,6 +15,7 @@
 #include <vector>
 #include <string>
 #include <utility> // para std::pair
+#include <algorithm>  // For std::clamp
 
 // gdi+ para dibujar los sprites
 #include <objidl.h>
@@ -64,6 +65,14 @@ enum class EnemyType {
     MERCENARY
 };
 
+// Fallback clamp implementation for older compilers
+namespace std {
+    template<typename T>
+    constexpr const T& clamp(const T& v, const T& lo, const T& hi) {
+        return (v < lo) ? lo : (hi < v) ? hi : v;
+    }
+}
+
 // la clase enemy maneja toda la logica de los enemigos
 class Enemy {
 public:
@@ -111,6 +120,15 @@ public:
 
     bool LoadImage();
     Gdiplus::Image* pEnemyImage;
+
+    float GetArrowResistance() const { return resistanceArrow; }
+    void SetArrowResistance(float resistance) { resistanceArrow = std::clamp(resistance, 0.1f, 3.0f); }
+    
+    float GetMagicResistance() const { return resistanceMagic; }
+    void SetMagicResistance(float resistance) { resistanceMagic = std::clamp(resistance, 0.1f, 3.0f); }
+    
+    float GetArtilleryResistance() const { return resistanceArtillery; }
+    void SetArtilleryResistance(float resistance) { resistanceArtillery = std::clamp(resistance, 0.0f, 3.0f); }
 
 private:
     EnemyType type;
